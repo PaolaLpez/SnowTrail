@@ -1,0 +1,8 @@
+mx.utng.snowtrail.wear-pngs-0 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\generated\res\pngs\debug
+mx.utng.snowtrail.wear-updated_navigation_xml-1 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\generated\updated_navigation_xml\debug
+mx.utng.snowtrail.wear-packageDebugResources-2 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+mx.utng.snowtrail.wear-packageDebugResources-3 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+mx.utng.snowtrail.wear-debug-4 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\intermediates\merged_res\debug\mergeDebugResources
+mx.utng.snowtrail.wear-debug-5 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\src\debug\res
+mx.utng.snowtrail.wear-main-6 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\src\main\res
+gradleHome-0 C:\Users\ADMIN\.gradle

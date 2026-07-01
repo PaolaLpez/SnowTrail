@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "mx.utng.snowtrail.wear-mergeDebugResources-54:/values-v24/values-v24.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\ADMIN\\.gradle\\caches\\9.4.1\\transforms\\1d7d8eb9fbbd9f0dc56491e3f6ac869b\\transformed\\wear-1.3.0\\res\\values-v24\\values-v24.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "14",
+                        "endColumns": "12",
+                        "endOffsets": "929"
+                    }
+                }
+            ]
+        }
+    ]
+}
