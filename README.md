@@ -51,6 +51,11 @@ Desarrollar una aplicación móvil integrada con un dispositivo wearable (Wear O
 
 ### 📱 1. Módulo Móvil (Smartphone) - `:app`
 
+#### 🔐 Autenticación y Cuentas
+| Iniciar Sesión | Registro de Nuevo Cliente |
+| :---: | :---: |
+| ![Iniciar Sesión](Capturas/Pantalla_login_app.png) | ![Registro de Cliente](Capturas/Pantalla_registro_app.png) |
+
 #### 👤 Vistas del Cliente
 | Explorar Neverías | Favoritos Personalizados | Detalle & Carrito de Helados |
 | :---: | :---: | :---: |
