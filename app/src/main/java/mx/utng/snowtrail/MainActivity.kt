@@ -23,6 +23,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -42,11 +46,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.viewinterop.AndroidView
 import mx.utng.snowtrail.database.SnowTrailRepository
 import mx.utng.snowtrail.service.MockNotification
 import mx.utng.snowtrail.service.MockOrder
 import mx.utng.snowtrail.service.MockProductLine
 import mx.utng.snowtrail.service.MockShop
+import mx.utng.snowtrail.service.MockPromotion
 import mx.utng.snowtrail.service.WearSyncService
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,10 +109,31 @@ object MobileThemeColors {
 class MainActivity : ComponentActivity() {
 
     private lateinit var repository: SnowTrailRepository
+    var tvIpAddress by mutableStateOf("10.0.2.2")
+
+    fun sendToTv(message: String) {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            val ips = listOf(tvIpAddress, "10.0.2.2", "192.168.1.100", "127.0.0.1")
+            for (ip in ips) {
+                if (ip.isBlank()) continue
+                try {
+                    val client = java.net.Socket()
+                    client.connect(java.net.InetSocketAddress(ip, 9090), 800)
+                    val writer = java.io.PrintWriter(client.getOutputStream(), true)
+                    writer.println(message)
+                    writer.close()
+                    client.close()
+                } catch (e: Exception) {
+                    // Try next fallback
+                }
+            }
+        }
+    }
     private var locationManager: LocationManager? = null
     private var locationListener: LocationListener? = null
     private var onLocationChangedCallback: ((Double, Double) -> Unit)? = null
 
+    @android.annotation.SuppressLint("MissingPermission")
     fun startLocationUpdates(context: Context) {
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -142,6 +172,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     fun stopLocationUpdates() {
         locationListener?.let { locationManager?.removeUpdates(it) }
         locationListener = null
@@ -156,31 +187,53 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        repository = SnowTrailRepository(applicationContext)
-        repository.initializeDemoDataIfEmpty()
+        try {
+            repository = SnowTrailRepository(applicationContext)
+            repository.initializeDemoDataIfEmpty()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error Init DB: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
 
         // Start Wear Sync Service to initialize DataLayer
-        val startIntent = Intent(this, WearSyncService::class.java).apply {
-            action = "mx.utng.snowtrail.ACTION_SYNC_ALL"
+        try {
+            val startIntent = Intent(this, WearSyncService::class.java).apply {
+                action = "mx.utng.snowtrail.ACTION_SYNC_ALL"
+            }
+            startService(startIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        startService(startIntent)
 
         setContent {
+            // Session states
+            var loggedInUserEmail by remember { mutableStateOf<String?>(null) }
+            var loggedInUserRole by remember { mutableStateOf<String?>(null) }
+
             // Navigation states: "home", "shop_detail", "route_navigation"
             var currentScreen by remember { mutableStateOf("home") }
             var selectedShopId by remember { mutableStateOf("") }
             var selectedTab by remember { mutableIntStateOf(0) }
+            var shopToEdit by remember { mutableStateOf<MockShop?>(null) }
+            var promoToEdit by remember { mutableStateOf<MockPromotion?>(null) }
             
             // Observe states dynamically from SQLite database
             var activeOrder by remember { mutableStateOf<MockOrder?>(null) }
             var shopsList by remember { mutableStateOf<List<MockShop>>(emptyList()) }
             var notificationsList by remember { mutableStateOf<List<MockNotification>>(emptyList()) }
+            var promotionsList by remember { mutableStateOf<List<MockPromotion>>(emptyList()) }
 
             // Helper to reload from database
             val reloadFromDb = {
-                activeOrder = repository.getActiveOrder()
-                shopsList = repository.getShops()
-                notificationsList = repository.getNotifications()
+                try {
+                    activeOrder = repository.getActiveOrder()
+                    shopsList = repository.getShops()
+                    notificationsList = repository.getNotifications()
+                    promotionsList = repository.getPromotions()
+                } catch (e: Exception) {
+                    Toast.makeText(applicationContext, "Error reloadFromDb: ${e.message}", Toast.LENGTH_LONG).show()
+                    e.printStackTrace()
+                }
             }
 
             // Sync triggers and UI update
@@ -257,7 +310,7 @@ class MainActivity : ComponentActivity() {
             }
 
             // Handle back press
-            BackHandler(enabled = currentScreen != "home") {
+            BackHandler(enabled = loggedInUserEmail != null && currentScreen != "home") {
                 currentScreen = "home"
                 reloadFromDb()
             }
@@ -280,259 +333,426 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 color = MobileThemeColors.OffWhiteVanilla
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Ice Cream Header Bar
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MobileThemeColors.IceCreamPink,
-                                        MobileThemeColors.IceCreamPeach,
-                                        MobileThemeColors.IceCreamMint
-                                    )
-                                ),
-                                shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+                if (loggedInUserEmail == null) {
+                    LoginRegisterScreen(
+                        repository = repository,
+                        onLoginSuccess = { email, role ->
+                            loggedInUserEmail = email
+                            loggedInUserRole = role
+                            selectedTab = 0
+                            currentScreen = "home"
+                            reloadFromDb()
+                        }
+                    )
+                } else if (loggedInUserRole == "ADMIN") {
+                    AdminLayout(
+                        repository = repository,
+                        shopsList = shopsList,
+                        promotionsList = promotionsList,
+                        activeOrder = activeOrder,
+                        notificationsList = notificationsList,
+                        useRealGps = useRealGps,
+                        userLatitude = userLatitude,
+                        userLongitude = userLongitude,
+                        tvIpAddress = tvIpAddress,
+                        onTvIpAddressChange = { tvIpAddress = it },
+                        onSendToTv = { sendToTv(it) },
+                        onToggleRealGps = { enabled ->
+                            useRealGps = enabled
+                            if (!enabled) {
+                                userLatitude = 21.1561
+                                userLongitude = -100.9312
+                                val basePositions = mapOf(
+                                    "nev_los_abuelos" to 80.0,
+                                    "nev_la_mich" to 350.0,
+                                    "nev_zero" to 1200.0,
+                                    "nev_artis" to 2900.0,
+                                    "nev_far" to 4500.0,
+                                    "nev_centenario" to 2800.0,
+                                    "nev_gelato" to 3800.0,
+                                    "nev_antonio" to 1800.0,
+                                    "nev_copo" to 2600.0,
+                                    "nev_flor" to 8000.0
+                                )
+                                basePositions.forEach { (id, basePos) ->
+                                     repository.updateShopDistance(id, basePos)
+                                }
+                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                            }
+                        },
+                        onGPSMoved = { sliderValue ->
+                            val simulatedBasePositions = mapOf(
+                                "nev_los_abuelos" to 80.0,
+                                "nev_la_mich" to 350.0,
+                                "nev_zero" to 1200.0,
+                                "nev_artis" to 2900.0,
+                                "nev_far" to 4500.0,
+                                "nev_centenario" to 2800.0,
+                                "nev_gelato" to 3800.0,
+                                "nev_antonio" to 1800.0,
+                                "nev_copo" to 2600.0,
+                                "nev_flor" to 8000.0
                             )
-                            .border(
-                                BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-                            )
-                            .padding(top = 16.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                            simulatedBasePositions.forEach { (id, basePos) ->
+                                val newDistance = kotlin.math.abs(sliderValue.toDouble() - basePos)
+                                repository.updateShopDistance(id, newDistance)
+                            }
+                            triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                        },
+                        triggerSync = triggerSync,
+                        reloadFromDb = reloadFromDb,
+                        onLogout = {
+                            loggedInUserEmail = null
+                            loggedInUserRole = null
+                            selectedTab = 0
+                            currentScreen = "home"
+                        }
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Ice Cream Header Bar
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MobileThemeColors.IceCreamPink,
+                                            MobileThemeColors.IceCreamPeach,
+                                            MobileThemeColors.IceCreamMint
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+                                )
+                                .border(
+                                    BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+                                )
+                                .padding(top = 16.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (currentScreen != "home") {
-                                    IconButton(
-                                        onClick = { 
-                                            currentScreen = "home"
-                                            reloadFromDb()
-                                        },
-                                        modifier = Modifier
-                                            .padding(end = 8.dp)
-                                            .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
-                                            .size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowBack,
-                                            contentDescription = "Volver",
-                                            tint = MobileThemeColors.PinkText,
-                                            modifier = Modifier.size(20.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (currentScreen != "home") {
+                                        IconButton(
+                                            onClick = { 
+                                                currentScreen = "home"
+                                                reloadFromDb()
+                                            },
+                                            modifier = Modifier
+                                                .padding(end = 8.dp)
+                                                .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
+                                                .size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowBack,
+                                                contentDescription = "Volver",
+                                                tint = MobileThemeColors.PinkText,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Column {
+                                        Text(
+                                            text = when (currentScreen) {
+                                                "shop_detail" -> "Detalle de Nevería"
+                                                "route_navigation" -> "Navegación al Local"
+                                                else -> "SnowTrail"
+                                            },
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MobileThemeColors.CocoaDarkText
+                                        )
+                                        Text(
+                                            text = when (currentScreen) {
+                                                "shop_detail" -> "Explora sabores y pide tu helado"
+                                                "route_navigation" -> "Simulador de ruta en tiempo real"
+                                                else -> "Tu compañero dulce de heladerías"
+                                            },
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MobileThemeColors.CocoaLightText
                                         )
                                     }
                                 }
-                                Column {
-                                    Text(
-                                        text = when (currentScreen) {
-                                            "shop_detail" -> "Detalle de Nevería"
-                                            "route_navigation" -> "Navegación al Local"
-                                            else -> "SnowTrail"
-                                        },
-                                        fontSize = 22.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MobileThemeColors.CocoaDarkText
-                                    )
-                                    Text(
-                                        text = when (currentScreen) {
-                                            "shop_detail" -> "Explora sabores y pide tu helado"
-                                            "route_navigation" -> "Simulador de ruta en tiempo real"
-                                            else -> "Tu compañero dulce de heladerías"
-                                        },
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MobileThemeColors.CocoaLightText
-                                    )
-                                }
-                            }
-                            
-                            // Connected badge styled like an ice cream capsule
-                            Box(
-                                modifier = Modifier
-                                    .background(Color.White, RoundedCornerShape(14.dp))
-                                    .border(BorderStroke(1.5.dp, MobileThemeColors.IceCreamMint), RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
+                                
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // Connected badge styled like an ice cream capsule
                                     Box(
                                         modifier = Modifier
-                                            .size(8.dp)
-                                            .background(MobileThemeColors.MintText, RoundedCornerShape(50))
+                                            .background(Color.White, RoundedCornerShape(14.dp))
+                                            .border(BorderStroke(1.5.dp, MobileThemeColors.IceCreamMint), RoundedCornerShape(14.dp))
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
                                     ) {
-                                        Text(
-                                            text = "Listo para Pedir",
-                                            color = MobileThemeColors.MintText,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .background(MobileThemeColors.MintText, RoundedCornerShape(50))
+                                            )
+                                            Text(
+                                                text = loggedInUserRole ?: "CLIENTE",
+                                                color = MobileThemeColors.MintText,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    // Logout button
+                                    IconButton(
+                                        onClick = {
+                                            loggedInUserEmail = null
+                                            loggedInUserRole = null
+                                            selectedTab = 0
+                                            currentScreen = "home"
+                                        },
+                                        modifier = Modifier
+                                            .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
+                                            .size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Logout,
+                                            contentDescription = "Cerrar sesión",
+                                            tint = MobileThemeColors.PinkText,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Main screen content based on navigation
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        when (currentScreen) {
-                            "home" -> Column(modifier = Modifier.fillMaxSize()) {
-                                // Rounded Floating Tab Navigation Bar
-                                TabRow(
-                                    selectedTabIndex = selectedTab,
-                                    containerColor = Color.Transparent,
-                                    contentColor = MobileThemeColors.PinkText,
-                                    indicator = { tabPositions ->
-                                        TabRowDefaults.SecondaryIndicator(
-                                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                            color = MobileThemeColors.PinkText
+                        // Main screen content based on navigation
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            when (currentScreen) {
+                                "home" -> Column(modifier = Modifier.fillMaxSize()) {
+                                    val tabsList = if (loggedInUserRole == "ADMIN") {
+                                        listOf(
+                                            Triple("Explorar", Icons.Default.Explore, 0),
+                                            Triple("Mi Pedido", Icons.Default.ReceiptLong, 1),
+                                            Triple("Simular", Icons.Default.Settings, 2),
+                                            Triple("GPS", Icons.Default.Place, 3)
                                         )
-                                    },
-                                    modifier = Modifier
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                        .background(Color.White, RoundedCornerShape(16.dp))
-                                        .border(BorderStroke(1.dp, MobileThemeColors.IceCreamPeach.copy(alpha = 0.5f)), RoundedCornerShape(16.dp))
-                                        .clip(RoundedCornerShape(16.dp))
-                                ) {
-                                    Tab(
-                                        selected = selectedTab == 0,
-                                        onClick = { 
-                                            selectedTab = 0 
-                                            reloadFromDb()
-                                        },
-                                        text = { Text("Explorar", fontWeight = FontWeight.Bold) },
-                                        icon = { Icon(Icons.Default.Explore, contentDescription = "Explorar") }
-                                    )
-                                    Tab(
-                                        selected = selectedTab == 1,
-                                        onClick = { 
-                                            selectedTab = 1 
-                                            reloadFromDb()
-                                        },
-                                        text = { Text("Mi Pedido", fontWeight = FontWeight.Bold) },
-                                        icon = { Icon(Icons.Default.ReceiptLong, contentDescription = "Pedido") }
-                                    )
-                                    Tab(
-                                        selected = selectedTab == 2,
-                                        onClick = { 
-                                            selectedTab = 2 
-                                            reloadFromDb()
-                                        },
-                                        text = { Text("Simular", fontWeight = FontWeight.Bold) },
-                                        icon = { Icon(Icons.Default.Settings, contentDescription = "Simulador") }
-                                    )
-                                    Tab(
-                                        selected = selectedTab == 3,
-                                        onClick = { 
-                                            selectedTab = 3 
-                                            reloadFromDb()
-                                        },
-                                        text = { Text("GPS", fontWeight = FontWeight.Bold) },
-                                        icon = { Icon(Icons.Default.Place, contentDescription = "GPS") }
-                                    )
-                                }
-
-                                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                    when (selectedTab) {
-                                        0 -> ExploreShopsScreen(
-                                            shops = shopsList,
-                                            onToggleFavorite = { shopId ->
-                                                repository.toggleFavoriteShop(shopId)
-                                                reloadFromDb()
-                                                // Sync updated shops list with Wear OS immediately
-                                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
-                                            },
-                                            onShopClicked = { shopId ->
-                                                selectedShopId = shopId
-                                                currentScreen = "shop_detail"
-                                            }
-                                        )
-                                        1 -> MobileOrderScreen(
-                                            order = activeOrder,
-                                            onNavigateToRoute = {
-                                                currentScreen = "route_navigation"
-                                            }
-                                        )
-                                        2 -> SimulatorControlScreen(
-                                            order = activeOrder,
-                                            notifications = notificationsList,
-                                            onActionTriggered = { actionName, extraKey, extraVal ->
-                                                triggerSync(actionName, extraKey, extraVal)
-                                                reloadFromDb()
-                                            }
-                                        )
-                                        3 -> GPSScreen(
-                                            useRealGps = useRealGps,
-                                            userLat = userLatitude,
-                                            userLng = userLongitude,
-                                            onToggleRealGps = { enabled ->
-                                                useRealGps = enabled
-                                                if (!enabled) {
-                                                    userLatitude = 21.1561
-                                                    userLongitude = -100.9312
-                                                    val basePositions = mapOf(
-                                                        "nev_los_abuelos" to 80.0,
-                                                        "nev_la_mich" to 350.0,
-                                                        "nev_zero" to 1200.0,
-                                                        "nev_artis" to 2900.0,
-                                                        "nev_far" to 4500.0,
-                                                        "nev_centenario" to 2800.0,
-                                                        "nev_gelato" to 3800.0,
-                                                        "nev_antonio" to 1800.0,
-                                                        "nev_copo" to 2600.0,
-                                                        "nev_flor" to 8000.0
-                                                    )
-                                                    basePositions.forEach { (id, basePos) ->
-                                                         repository.updateShopDistance(id, basePos)
-                                                    }
-                                                    triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
-                                                }
-                                            },
-                                            onGPSMoved = { sliderValue ->
-                                                val simulatedBasePositions = mapOf(
-                                                    "nev_los_abuelos" to 80.0,
-                                                    "nev_la_mich" to 350.0,
-                                                    "nev_zero" to 1200.0,
-                                                    "nev_artis" to 2900.0,
-                                                    "nev_far" to 4500.0,
-                                                    "nev_centenario" to 2800.0,
-                                                    "nev_gelato" to 3800.0,
-                                                    "nev_antonio" to 1800.0,
-                                                    "nev_copo" to 2600.0,
-                                                    "nev_flor" to 8000.0
-                                                )
-                                                simulatedBasePositions.forEach { (id, basePos) ->
-                                                    val newDistance = kotlin.math.abs(sliderValue.toDouble() - basePos)
-                                                    repository.updateShopDistance(id, newDistance)
-                                                }
-                                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
-                                            }
+                                    } else {
+                                        listOf(
+                                            Triple("Explorar", Icons.Default.Explore, 0),
+                                            Triple("Mi Pedido", Icons.Default.ReceiptLong, 1),
+                                            Triple("GPS", Icons.Default.Place, 2),
+                                            Triple("Mapa API", Icons.Default.Map, 3)
                                         )
                                     }
+
+                                    // Rounded Floating Tab Navigation Bar
+                                    TabRow(
+                                        selectedTabIndex = selectedTab,
+                                        containerColor = Color.Transparent,
+                                        contentColor = MobileThemeColors.PinkText,
+                                        indicator = { tabPositions ->
+                                            if (selectedTab in tabPositions.indices) {
+                                                TabRowDefaults.SecondaryIndicator(
+                                                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                                    color = MobileThemeColors.PinkText
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                                            .background(Color.White, RoundedCornerShape(16.dp))
+                                            .border(BorderStroke(1.dp, MobileThemeColors.IceCreamPeach.copy(alpha = 0.5f)), RoundedCornerShape(16.dp))
+                                            .clip(RoundedCornerShape(16.dp))
+                                    ) {
+                                        tabsList.forEachIndexed { index, tabInfo ->
+                                            Tab(
+                                                selected = selectedTab == index,
+                                                onClick = { 
+                                                    selectedTab = index 
+                                                    reloadFromDb()
+                                                },
+                                                text = { Text(tabInfo.first, fontWeight = FontWeight.Bold) },
+                                                icon = { Icon(tabInfo.second, contentDescription = tabInfo.first) }
+                                            )
+                                        }
+                                    }
+
+                                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                        if (loggedInUserRole == "ADMIN") {
+                                            when (selectedTab) {
+                                                0 -> ExploreShopsScreen(
+                                                    shops = shopsList,
+                                                    onToggleFavorite = { shopId ->
+                                                        repository.toggleFavoriteShop(shopId)
+                                                        reloadFromDb()
+                                                        triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                                    },
+                                                    onShopClicked = { shopId ->
+                                                        selectedShopId = shopId
+                                                        currentScreen = "shop_detail"
+                                                    }
+                                                )
+                                                1 -> MobileOrderScreen(
+                                                    order = activeOrder,
+                                                    onNavigateToRoute = {
+                                                        currentScreen = "route_navigation"
+                                                    }
+                                                )
+                                                2 -> SimulatorControlScreen(
+                                                    order = activeOrder,
+                                                    notifications = notificationsList,
+                                                    onActionTriggered = { actionName, extraKey, extraVal ->
+                                                        triggerSync(actionName, extraKey, extraVal)
+                                                        reloadFromDb()
+                                                    }
+                                                )
+                                                3 -> GPSScreen(
+                                                    useRealGps = useRealGps,
+                                                    userLat = userLatitude,
+                                                    userLng = userLongitude,
+                                                    onToggleRealGps = { enabled ->
+                                                        useRealGps = enabled
+                                                        if (!enabled) {
+                                                            userLatitude = 21.1561
+                                                            userLongitude = -100.9312
+                                                            val basePositions = mapOf(
+                                                                "nev_los_abuelos" to 80.0,
+                                                                "nev_la_mich" to 350.0,
+                                                                "nev_zero" to 1200.0,
+                                                                "nev_artis" to 2900.0,
+                                                                "nev_far" to 4500.0,
+                                                                "nev_centenario" to 2800.0,
+                                                                "nev_gelato" to 3800.0,
+                                                                "nev_antonio" to 1800.0,
+                                                                "nev_copo" to 2600.0,
+                                                                "nev_flor" to 8000.0
+                                                            )
+                                                            basePositions.forEach { (id, basePos) ->
+                                                                 repository.updateShopDistance(id, basePos)
+                                                            }
+                                                            triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                                        }
+                                                    },
+                                                    onGPSMoved = { sliderValue ->
+                                                        val simulatedBasePositions = mapOf(
+                                                            "nev_los_abuelos" to 80.0,
+                                                            "nev_la_mich" to 350.0,
+                                                            "nev_zero" to 1200.0,
+                                                            "nev_artis" to 2900.0,
+                                                            "nev_far" to 4500.0,
+                                                            "nev_centenario" to 2800.0,
+                                                            "nev_gelato" to 3800.0,
+                                                            "nev_antonio" to 1800.0,
+                                                            "nev_copo" to 2600.0,
+                                                            "nev_flor" to 8000.0
+                                                        )
+                                                        simulatedBasePositions.forEach { (id, basePos) ->
+                                                            val newDistance = kotlin.math.abs(sliderValue.toDouble() - basePos)
+                                                            repository.updateShopDistance(id, newDistance)
+                                                        }
+                                                        triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                                    }
+                                                )
+                                            }
+                                        } else { // CLIENTE
+                                            when (selectedTab) {
+                                                0 -> ExploreShopsScreen(
+                                                    shops = shopsList,
+                                                    onToggleFavorite = { shopId ->
+                                                        repository.toggleFavoriteShop(shopId)
+                                                        reloadFromDb()
+                                                        triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                                    },
+                                                    onShopClicked = { shopId ->
+                                                        selectedShopId = shopId
+                                                        currentScreen = "shop_detail"
+                                                    }
+                                                )
+                                                1 -> MobileOrderScreen(
+                                                    order = activeOrder,
+                                                    onNavigateToRoute = {
+                                                        currentScreen = "route_navigation"
+                                                    }
+                                                )
+                                                2 -> GPSScreen(
+                                                    useRealGps = useRealGps,
+                                                    userLat = userLatitude,
+                                                    userLng = userLongitude,
+                                                    onToggleRealGps = { enabled ->
+                                                        useRealGps = enabled
+                                                        if (!enabled) {
+                                                            userLatitude = 21.1561
+                                                            userLongitude = -100.9312
+                                                            val basePositions = mapOf(
+                                                                "nev_los_abuelos" to 80.0,
+                                                                "nev_la_mich" to 350.0,
+                                                                "nev_zero" to 1200.0,
+                                                                "nev_artis" to 2900.0,
+                                                                "nev_far" to 4500.0,
+                                                                "nev_centenario" to 2800.0,
+                                                                "nev_gelato" to 3800.0,
+                                                                "nev_antonio" to 1800.0,
+                                                                "nev_copo" to 2600.0,
+                                                                "nev_flor" to 8000.0
+                                                            )
+                                                            basePositions.forEach { (id, basePos) ->
+                                                                 repository.updateShopDistance(id, basePos)
+                                                            }
+                                                            triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                                        }
+                                                    },
+                                                    onGPSMoved = { sliderValue ->
+                                                        val simulatedBasePositions = mapOf(
+                                                            "nev_los_abuelos" to 80.0,
+                                                            "nev_la_mich" to 350.0,
+                                                            "nev_zero" to 1200.0,
+                                                            "nev_artis" to 2900.0,
+                                                            "nev_far" to 4500.0,
+                                                            "nev_centenario" to 2800.0,
+                                                            "nev_gelato" to 3800.0,
+                                                            "nev_antonio" to 1800.0,
+                                                            "nev_copo" to 2600.0,
+                                                            "nev_flor" to 8000.0
+                                                        )
+                                                        simulatedBasePositions.forEach { (id, basePos) ->
+                                                            val newDistance = kotlin.math.abs(sliderValue.toDouble() - basePos)
+                                                            repository.updateShopDistance(id, newDistance)
+                                                        }
+                                                        triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                                    }
+                                                )
+                                                3 -> PositionstackMapScreen(shops = shopsList)
+                                            }
+                                        }
+                                    }
                                 }
+                                "shop_detail" -> ShopDetailScreen(
+                                    shopId = selectedShopId,
+                                    shops = shopsList,
+                                    repository = repository,
+                                    userEmail = loggedInUserEmail ?: "Cliente@gmail.com",
+                                    onOrderCreated = { order ->
+                                        triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
+                                        val itemsSummary = order.productos.joinToString(", ") { "${it.cantidad}x ${it.nombre}" }
+                                        sendToTv("ADD_ORDER:${order.neveriaId}|${order.id}|Cliente Móvil|Para recoger: 15 min|15 min|\$${order.total} MXN|$itemsSummary|NUEVO")
+                                        selectedTab = 1
+                                        currentScreen = "home"
+                                    }
+                                )
+                                "route_navigation" -> RouteNavigationScreen(
+                                    order = activeOrder,
+                                    shops = shopsList,
+                                    onSimulateProximity = { shopId ->
+                                        triggerSync("mx.utng.snowtrail.ACTION_TRIGGER_PROXIMITY", "shop_id", shopId)
+                                    }
+                                )
                             }
-                            "shop_detail" -> ShopDetailScreen(
-                                shopId = selectedShopId,
-                                shops = shopsList,
-                                repository = repository,
-                                onOrderCreated = {
-                                    triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
-                                    selectedTab = 1
-                                    currentScreen = "home"
-                                }
-                            )
-                            "route_navigation" -> RouteNavigationScreen(
-                                order = activeOrder,
-                                shops = shopsList,
-                                onSimulateProximity = { shopId ->
-                                    triggerSync("mx.utng.snowtrail.ACTION_TRIGGER_PROXIMITY", "shop_id", shopId)
-                                }
-                            )
                         }
                     }
                 }
@@ -874,7 +1094,8 @@ fun ShopDetailScreen(
     shopId: String,
     shops: List<MockShop>,
     repository: SnowTrailRepository,
-    onOrderCreated: () -> Unit
+    userEmail: String,
+    onOrderCreated: (MockOrder) -> Unit
 ) {
     val shop = shops.find { it.id == shopId } ?: return
     
@@ -1058,11 +1279,12 @@ fun ShopDetailScreen(
                                 tiempoEstimadoMinutos = 15,
                                 fechaHoraMillis = System.currentTimeMillis(),
                                 total = total,
-                                productos = cart.map { MockProductLine(it.item.nombre, it.qty, it.item.precio) }
+                                productos = cart.map { MockProductLine(it.item.nombre, it.qty, it.item.precio) },
+                                userEmail = userEmail
                             )
                             // Save order in SQLite DB directly
                             repository.saveOrder(newOrder)
-                            onOrderCreated()
+                            onOrderCreated(newOrder)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.MintText),
                         modifier = Modifier.fillMaxWidth(),
@@ -1343,13 +1565,12 @@ fun SimulatorControlScreen(
     notifications: List<MockNotification>,
     onActionTriggered: (String, String?, String?) -> Unit
 ) {
-    LazyColumn(
+    Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
             Text(
                 text = "SIMULAR PEDIDOS (Base de datos SQLite)",
                 fontSize = 12.sp,
@@ -1478,11 +1699,9 @@ fun SimulatorControlScreen(
                     }
                 }
             }
-        }
 
         // Section: Proximity simulation
-        item {
-            Text(
+        Text(
                 text = "SIMULAR GEOCERCA (Alerta Proximidad)",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -1516,11 +1735,9 @@ fun SimulatorControlScreen(
                     Text("Detonar Alerta Proximidad (Los Abuelos)", color = MobileThemeColors.CocoaDarkText, fontWeight = FontWeight.Bold)
                 }
             }
-        }
 
         // Section: Notification simulation
-        item {
-            Text(
+        Text(
                 text = "SIMULAR PROMOCIONES Y ALERTAS",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -1589,8 +1806,6 @@ fun SimulatorControlScreen(
                     }
                 }
             }
-        }
-        
     }
 }
 
@@ -1718,3 +1933,1907 @@ data class NavigationStep(
     val instruction: String,
     val progressRange: ClosedFloatingPointRange<Float>
 )
+
+@Composable
+fun LoginRegisterScreen(
+    repository: SnowTrailRepository,
+    onLoginSuccess: (String, String) -> Unit
+) {
+    var isRegisterMode by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf("") }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MobileThemeColors.IceCreamPink.copy(alpha = 0.6f),
+                        MobileThemeColors.OffWhiteVanilla
+                    )
+                )
+            )
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MobileThemeColors.PureWhiteCard),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.5.dp, MobileThemeColors.IceCreamPink),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header Icon
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(MobileThemeColors.IceCreamPink, RoundedCornerShape(50)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🍦", fontSize = 32.sp)
+                }
+                
+                Text(
+                    text = if (isRegisterMode) "Registro de Cliente" else "Iniciar Sesión",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MobileThemeColors.CocoaDarkText
+                )
+                
+                Text(
+                    text = if (isRegisterMode) "Crea tu cuenta para pedir helados" else "Ingresa tus credenciales para continuar",
+                    fontSize = 12.sp,
+                    color = MobileThemeColors.CocoaLightText,
+                    textAlign = TextAlign.Center
+                )
+                
+                // Fields
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it; errorMessage = "" },
+                    label = { Text("Correo Electrónico") },
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email", tint = MobileThemeColors.PinkText) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MobileThemeColors.IceCreamPink,
+                        unfocusedBorderColor = MobileThemeColors.CocoaMuted.copy(alpha = 0.4f),
+                        focusedTextColor = MobileThemeColors.CocoaDarkText,
+                        unfocusedTextColor = MobileThemeColors.CocoaDarkText
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                var passwordVisible by remember { mutableStateOf(false) }
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it; errorMessage = "" },
+                    label = { Text("Contraseña") },
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password", tint = MobileThemeColors.PinkText) },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (passwordVisible) "Ocultar" else "Mostrar",
+                                tint = MobileThemeColors.CocoaMuted
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MobileThemeColors.IceCreamPink,
+                        unfocusedBorderColor = MobileThemeColors.CocoaMuted.copy(alpha = 0.4f),
+                        focusedTextColor = MobileThemeColors.CocoaDarkText,
+                        unfocusedTextColor = MobileThemeColors.CocoaDarkText
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                if (isRegisterMode) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it; errorMessage = "" },
+                        label = { Text("Confirmar Contraseña") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Confirm Password", tint = MobileThemeColors.PinkText) },
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MobileThemeColors.IceCreamPink,
+                            unfocusedBorderColor = MobileThemeColors.CocoaMuted.copy(alpha = 0.4f),
+                            focusedTextColor = MobileThemeColors.CocoaDarkText,
+                            unfocusedTextColor = MobileThemeColors.CocoaDarkText
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                
+                if (errorMessage.isNotEmpty()) {
+                    Text(
+                        text = errorMessage,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                
+                // Submit Button
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            errorMessage = "Por favor completa todos los campos"
+                            return@Button
+                        }
+                        
+                        if (isRegisterMode) {
+                            if (password != confirmPassword) {
+                                errorMessage = "Las contraseñas no coinciden"
+                                return@Button
+                            }
+                            if (password.length < 6) {
+                                errorMessage = "La contraseña debe tener al menos 6 caracteres"
+                                return@Button
+                            }
+                            
+                            // Check if they try to register Admin@gmail.com
+                            if (email.trim().equals("Admin@gmail.com", ignoreCase = true)) {
+                                errorMessage = "No puedes registrarte con esta cuenta"
+                                return@Button
+                            }
+
+                            val success = repository.registerUser(email.trim(), password, "CLIENTE")
+                            if (success) {
+                                isRegisterMode = false
+                                errorMessage = "¡Registro exitoso! Inicia sesión"
+                                password = ""
+                                confirmPassword = ""
+                            } else {
+                                errorMessage = "El correo ya está registrado"
+                            }
+                        } else {
+                            val role = repository.authenticateUser(email.trim(), password)
+                            if (role != null) {
+                                onLoginSuccess(email.trim(), role)
+                            } else {
+                                errorMessage = "Credenciales incorrectas"
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PinkText),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    Text(
+                        text = if (isRegisterMode) "Registrarse" else "Ingresar",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                // Switch mode
+                Text(
+                    text = if (isRegisterMode) "¿Ya tienes cuenta? Inicia sesión" else "¿No tienes cuenta? Regístrate aquí",
+                    color = MobileThemeColors.LavenderText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable {
+                            isRegisterMode = !isRegisterMode
+                            errorMessage = ""
+                            email = ""
+                            password = ""
+                            confirmPassword = ""
+                        }
+                        .padding(vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminLayout(
+    repository: SnowTrailRepository,
+    shopsList: List<MockShop>,
+    promotionsList: List<MockPromotion>,
+    activeOrder: MockOrder?,
+    notificationsList: List<MockNotification>,
+    useRealGps: Boolean,
+    userLatitude: Double,
+    userLongitude: Double,
+    tvIpAddress: String,
+    onTvIpAddressChange: (String) -> Unit,
+    onSendToTv: (String) -> Unit,
+    onToggleRealGps: (Boolean) -> Unit,
+    onGPSMoved: (Float) -> Unit,
+    triggerSync: (String, String?, String?) -> Unit,
+    reloadFromDb: () -> Unit,
+    onLogout: () -> Unit
+) {
+    var adminTab by remember { mutableIntStateOf(0) }
+    var adminSubScreen by remember { mutableStateOf("dashboard") }
+    var selectedShopToEdit by remember { mutableStateOf<MockShop?>(null) }
+    var selectedPromoToEdit by remember { mutableStateOf<MockPromotion?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFE2F9EE))
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            val strawberryOffsets = listOf(
+                Pair(0.1f, 0.15f), Pair(0.85f, 0.08f), Pair(0.05f, 0.45f),
+                Pair(0.9f, 0.35f), Pair(0.15f, 0.72f), Pair(0.88f, 0.65f),
+                Pair(0.5f, 0.2f), Pair(0.55f, 0.8f), Pair(0.08f, 0.9f),
+                Pair(0.92f, 0.88f), Pair(0.7f, 0.5f), Pair(0.3f, 0.55f)
+            )
+            strawberryOffsets.forEach { (x, y) ->
+                Text(
+                    text = "🍓",
+                    fontSize = 24.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(
+                            x = (x * 320).dp,
+                            y = (y * 600).dp
+                        )
+                        .alpha(0.18f)
+                )
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 12.dp, start = 20.dp, end = 20.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color.White, CircleShape)
+                                .border(BorderStroke(1.5.dp, Color(0xFFEF9A9A)), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🍦", fontSize = 20.sp)
+                        }
+
+                        OutlinedTextField(
+                            value = tvIpAddress,
+                            onValueChange = onTvIpAddressChange,
+                            label = { Text("IP de la TV", fontSize = 9.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MobileThemeColors.IceCreamPink,
+                                focusedTextColor = MobileThemeColors.CocoaDarkText,
+                                unfocusedTextColor = MobileThemeColors.CocoaDarkText
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                            modifier = Modifier.width(120.dp).height(48.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White, RoundedCornerShape(20.dp))
+                            .border(BorderStroke(1.5.dp, Color(0xFFEF9A9A)), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 20.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "SnowTrail Admin",
+                            color = MobileThemeColors.PinkText,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                if (adminSubScreen == "edit_shop" && selectedShopToEdit != null) {
+                    AdminEditShopScreen(
+                        shop = selectedShopToEdit!!,
+                        onSave = { updatedShop ->
+                            repository.saveShop(updatedShop)
+                            reloadFromDb()
+                            triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                            adminSubScreen = "dashboard"
+                        },
+                        onCancel = { adminSubScreen = "dashboard" }
+                    )
+                } else if (adminSubScreen == "edit_promo" && selectedPromoToEdit != null) {
+                    AdminEditPromoScreen(
+                        promo = selectedPromoToEdit!!,
+                        onSave = { updatedPromo ->
+                            repository.savePromotion(updatedPromo)
+                            reloadFromDb()
+                            triggerSync("mx.utng.snowtrail.ACTION_SYNC_NOTIFICATIONS", null, null)
+                            adminSubScreen = "dashboard"
+                        },
+                        onCancel = { adminSubScreen = "dashboard" }
+                    )
+                } else {
+                    when (adminTab) {
+                        0 -> AdminDashboardTab(
+                            shopsList = shopsList,
+                            promotionsList = promotionsList,
+                            onSelectShopForTv = { shopId ->
+                                onSendToTv("SELECT_SHOP:$shopId")
+                            },
+                            onEditShop = {
+                                selectedShopToEdit = it
+                                adminSubScreen = "edit_shop"
+                            },
+                            onDeleteShop = { shopId ->
+                                repository.deleteShop(shopId)
+                                reloadFromDb()
+                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                            },
+                            onEditPromo = {
+                                selectedPromoToEdit = it
+                                adminSubScreen = "edit_promo"
+                            },
+                            onDeletePromo = { promoId ->
+                                repository.deletePromotion(promoId)
+                                reloadFromDb()
+                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_NOTIFICATIONS", null, null)
+                            }
+                        )
+                        1 -> AdminAddTab(
+                            repository = repository,
+                            shopsList = shopsList,
+                            reloadFromDb = reloadFromDb,
+                            triggerSync = triggerSync,
+                            onSavePromotionToTv = { shopId, promoId, name, start, end, note ->
+                                onSendToTv("ADD_PROMO:$shopId|$promoId|$name|$start|$end|$note|🍓")
+                            },
+                            onSendToTv = onSendToTv,
+                            onSuccess = { adminTab = 0 }
+                        )
+                        2 -> AdminOrdersHistoryTab(
+                            repository = repository,
+                            reloadFromDb = reloadFromDb
+                        )
+                        3 -> AdminProfileTab(
+                            activeOrder = activeOrder,
+                            notificationsList = notificationsList,
+                            useRealGps = useRealGps,
+                            userLatitude = userLatitude,
+                            userLongitude = userLongitude,
+                            onToggleRealGps = onToggleRealGps,
+                            onGPSMoved = onGPSMoved,
+                            onActionTriggered = { actionName, extraKey, extraVal ->
+                                triggerSync(actionName, extraKey, extraVal)
+                                reloadFromDb()
+                            },
+                            onLogout = onLogout
+                        )
+                        4 -> PositionstackMapScreen(shops = shopsList)
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .border(BorderStroke(1.dp, Color(0xFFEEEEEE)))
+                    .padding(vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            adminTab = 0
+                            adminSubScreen = "dashboard"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Home",
+                            tint = if (adminTab == 0 && adminSubScreen == "dashboard") Color(0xFFEF9A9A) else Color(0xFFA7B8C4),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            adminTab = 1
+                            adminSubScreen = "dashboard"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Agregar",
+                            tint = if (adminTab == 1 && adminSubScreen == "dashboard") Color(0xFFEF9A9A) else Color(0xFFA7B8C4),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            adminTab = 2
+                            adminSubScreen = "dashboard"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ReceiptLong,
+                            contentDescription = "Historial",
+                            tint = if (adminTab == 2 && adminSubScreen == "dashboard") Color(0xFFEF9A9A) else Color(0xFFA7B8C4),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            adminTab = 3
+                            adminSubScreen = "dashboard"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Perfil",
+                            tint = if (adminTab == 3 && adminSubScreen == "dashboard") Color(0xFFEF9A9A) else Color(0xFFA7B8C4),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            adminTab = 4
+                            adminSubScreen = "dashboard"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Map,
+                            contentDescription = "Mapa API",
+                            tint = if (adminTab == 4 && adminSubScreen == "dashboard") Color(0xFFEF9A9A) else Color(0xFFA7B8C4),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminDashboardTab(
+    shopsList: List<MockShop>,
+    promotionsList: List<MockPromotion>,
+    onSelectShopForTv: (String) -> Unit = {},
+    onEditShop: (MockShop) -> Unit,
+    onDeleteShop: (String) -> Unit,
+    onEditPromo: (MockPromotion) -> Unit,
+    onDeletePromo: (String) -> Unit
+) {
+    var selectedSection by remember { mutableStateOf("neverias") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .background(Color.White, RoundedCornerShape(12.dp))
+                .padding(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (selectedSection == "neverias") Color(0xFFEF9A9A) else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { selectedSection = "neverias" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Neverías",
+                    fontWeight = FontWeight.Bold,
+                    color = if (selectedSection == "neverias") Color.White else Color.Gray
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (selectedSection == "promociones") Color(0xFFEF9A9A) else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { selectedSection = "promociones" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Promociones",
+                    fontWeight = FontWeight.Bold,
+                    color = if (selectedSection == "promociones") Color.White else Color.Gray
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            if (selectedSection == "neverias") {
+                items(shopsList) { shop ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = shop.nombre,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF333333)
+                                )
+                                Text(
+                                    text = "${shop.distancia.toInt()} m",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = "📍 ${shop.direccion}", fontSize = 13.sp, color = Color.DarkGray)
+                            Text(text = "🕒 ${shop.horario}", fontSize = 13.sp, color = Color.DarkGray)
+                            Text(text = "📞 ${shop.contacto}", fontSize = 13.sp, color = Color.DarkGray)
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                TextButton(onClick = { onSelectShopForTv(shop.id) }) {
+                                    Text("📺 Ver en TV", color = Color(0xFF4A34AC), fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(onClick = { onEditShop(shop) }) {
+                                    Text("Editar", color = Color(0xFFEF9A9A), fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(onClick = { onDeleteShop(shop.id) }) {
+                                    Text("Eliminar", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                items(promotionsList) { promo ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = promo.nombre,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF333333)
+                            )
+                            
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(text = "📅 Inicio: ${promo.fechaInicio} | Fin: ${promo.fechaFin}", fontSize = 13.sp, color = Color.DarkGray)
+                            Text(text = "📝 Nota: ${promo.nota}", fontSize = 13.sp, color = Color.DarkGray)
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                TextButton(onClick = { onEditPromo(promo) }) {
+                                    Text("Editar", color = Color(0xFFEF9A9A), fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(onClick = { onDeletePromo(promo.id) }) {
+                                    Text("Eliminar", color = Color.Red.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminAddTab(
+    repository: SnowTrailRepository,
+    shopsList: List<MockShop> = emptyList(),
+    reloadFromDb: () -> Unit,
+    triggerSync: (String, String?, String?) -> Unit,
+    onSavePromotionToTv: (String, String, String, String, String, String) -> Unit = { _, _, _, _, _, _ -> },
+    onSendToTv: (String) -> Unit = {},
+    onSuccess: () -> Unit
+) {
+    var formType by remember { mutableStateOf("neveria") }
+    
+    var shopName by remember { mutableStateOf("") }
+    var shopHorario by remember { mutableStateOf("") }
+    var shopContacto by remember { mutableStateOf("") }
+    var shopDireccion by remember { mutableStateOf("") }
+    
+    var promoName by remember { mutableStateOf("") }
+    var promoStart by remember { mutableStateOf("") }
+    var promoEnd by remember { mutableStateOf("") }
+    var promoNote by remember { mutableStateOf("") }
+
+    var selectedShopIdForPromo by remember { mutableStateOf("nev_los_abuelos") }
+    var selectedShopNameForPromo by remember { mutableStateOf("Los Abuelos") }
+    var expandedShopSelect by remember { mutableStateOf(false) }
+
+    var selectedShopIndex by remember { mutableIntStateOf(0) }
+    var selectedProductIndex by remember { mutableIntStateOf(0) }
+    var orderSentSuccessMessage by remember { mutableStateOf("") }
+    val orderProducts = remember { mutableStateListOf<MockProductLine>() }
+    var selectedQty by remember { mutableIntStateOf(1) }
+    
+    val quickProducts = listOf(
+        Pair("Nieve de Guanábana Especial", 45.0),
+        Pair("Helado de Chocolate Belga", 60.0),
+        Pair("Paleta de Fresas con Crema", 35.0),
+        Pair("Nieve de Limón con Chía", 40.0),
+        Pair("Helado de Pistache Premium", 65.0)
+    )
+
+    var errorMessage by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .background(Color.White, RoundedCornerShape(12.dp))
+                .padding(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (formType == "neveria") Color(0xFFEF9A9A) else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { formType = "neveria"; errorMessage = "" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Nueva Nevería", fontWeight = FontWeight.Bold, color = if (formType == "neveria") Color.White else Color.Gray, fontSize = 11.sp, maxLines = 1)
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (formType == "promocion") Color(0xFFEF9A9A) else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { formType = "promocion"; errorMessage = "" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Nueva Promoción", fontWeight = FontWeight.Bold, color = if (formType == "promocion") Color.White else Color.Gray, fontSize = 11.sp, maxLines = 1)
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (formType == "pedido") Color(0xFFEF9A9A) else Color.Transparent,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { formType = "pedido"; errorMessage = "" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Nuevo Pedido", fontWeight = FontWeight.Bold, color = if (formType == "pedido") Color.White else Color.Gray, fontSize = 11.sp, maxLines = 1)
+            }
+        }
+
+        Text(
+            text = if (formType == "neveria") "Agregar Nevería" else if (formType == "promocion") "Agregar Promoción" else "Realizar Pedido Rápido",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF333333),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (formType == "neveria") {
+                    OutlinedTextField(
+                        value = shopName,
+                        onValueChange = { shopName = it },
+                        label = { Text("Nombre") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = shopHorario,
+                        onValueChange = { shopHorario = it },
+                        label = { Text("Horario") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = shopContacto,
+                        onValueChange = { shopContacto = it },
+                        label = { Text("Contacto") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = shopDireccion,
+                        onValueChange = { shopDireccion = it },
+                        label = { Text("Dirección") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else if (formType == "promocion") {
+                    // Neveria selector
+                    Text("Para Heladería:", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 12.sp)
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { expandedShopSelect = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamPink),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "📺 Seleccionada: $selectedShopNameForPromo", color = MobileThemeColors.CocoaDarkText, fontWeight = FontWeight.Bold)
+                        }
+                        DropdownMenu(
+                            expanded = expandedShopSelect,
+                            onDismissRequest = { expandedShopSelect = false },
+                            modifier = Modifier.fillMaxWidth(0.8f)
+                        ) {
+                            shopsList.forEach { shop ->
+                                DropdownMenuItem(
+                                    text = { Text(shop.nombre) },
+                                    onClick = {
+                                        selectedShopIdForPromo = shop.id
+                                        selectedShopNameForPromo = shop.nombre
+                                        expandedShopSelect = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = promoName,
+                        onValueChange = { promoName = it },
+                        label = { Text("Nombre de la Promoción") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = promoStart,
+                        onValueChange = { promoStart = it },
+                        label = { Text("Fecha Inicio (AAAA-MM-DD)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = promoEnd,
+                        onValueChange = { promoEnd = it },
+                        label = { Text("Fecha Fin (AAAA-MM-DD)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = promoNote,
+                        onValueChange = { promoNote = it },
+                        label = { Text("Nota / Descripción") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else { // formType == "pedido"
+                    Text("Seleccionar Nevería:", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 12.sp)
+                    var shopExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { shopExpanded = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamPink),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "🏪: ${shopsList.getOrNull(selectedShopIndex)?.nombre ?: "Seleccionar"}", color = MobileThemeColors.CocoaDarkText, fontWeight = FontWeight.Bold)
+                        }
+                        DropdownMenu(
+                            expanded = shopExpanded,
+                            onDismissRequest = { shopExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.8f)
+                        ) {
+                            shopsList.forEachIndexed { index, shop ->
+                                DropdownMenuItem(
+                                    text = { Text(shop.nombre) },
+                                    onClick = {
+                                        selectedShopIndex = index
+                                        shopExpanded = false
+                                        orderProducts.clear()
+                                        orderSentSuccessMessage = ""
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Text("Seleccionar Producto:", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 12.sp)
+                    var productExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { productExpanded = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamPink),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "🍦: ${quickProducts[selectedProductIndex].first} ($${quickProducts[selectedProductIndex].second})", color = MobileThemeColors.CocoaDarkText, fontWeight = FontWeight.Bold)
+                        }
+                        DropdownMenu(
+                            expanded = productExpanded,
+                            onDismissRequest = { productExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.8f)
+                        ) {
+                            quickProducts.forEachIndexed { index, prod ->
+                                DropdownMenuItem(
+                                    text = { Text("${prod.first} ($${prod.second})") },
+                                    onClick = {
+                                        selectedProductIndex = index
+                                        productExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Text("Cantidad:", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                                .border(BorderStroke(1.dp, Color.LightGray), RoundedCornerShape(8.dp))
+                        ) {
+                            IconButton(
+                                onClick = { if (selectedQty > 1) selectedQty-- },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("-", fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                            }
+                            Text(
+                                text = selectedQty.toString(),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                color = Color.Black
+                            )
+                            IconButton(
+                                onClick = { selectedQty++ },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("+", fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Button(
+                            onClick = {
+                                val prod = quickProducts[selectedProductIndex]
+                                val existingIndex = orderProducts.indexOfFirst { it.nombre == prod.first }
+                                if (existingIndex != -1) {
+                                    val current = orderProducts[existingIndex]
+                                    orderProducts[existingIndex] = current.copy(cantidad = current.cantidad + selectedQty)
+                                } else {
+                                    orderProducts.add(MockProductLine(prod.first, selectedQty, prod.second))
+                                }
+                                selectedQty = 1
+                                orderSentSuccessMessage = ""
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamPink),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            Text("Añadir", color = MobileThemeColors.CocoaDarkText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    if (orderProducts.isNotEmpty()) {
+                        Divider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                        Text("Productos Añadidos:", fontWeight = FontWeight.Bold, color = Color(0xFF333333), fontSize = 13.sp)
+                        
+                        orderProducts.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
+                                    .border(BorderStroke(0.5.dp, Color(0xFFEEEEEE)), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(item.nombre, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                                    Text("${item.cantidad}x $${item.precioUnitario} = $${item.cantidad * item.precioUnitario}", fontSize = 11.sp, color = Color.Gray)
+                                }
+                                IconButton(
+                                    onClick = { orderProducts.remove(item) },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+
+                        val totalAmount = orderProducts.sumOf { item -> item.cantidad * item.precioUnitario }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Total del Pedido:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF333333))
+                            Text("$${totalAmount}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color(0xFFB52D5E))
+                        }
+                    }
+
+                    if (orderSentSuccessMessage.isNotEmpty()) {
+                        Text(text = orderSentSuccessMessage, color = Color(0xFF388E3C), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (formType == "neveria") {
+                                if (shopName.isBlank() || shopDireccion.isBlank()) {
+                                    errorMessage = "Nombre y dirección son requeridos"
+                                    return@Button
+                                }
+                                val newShopId = "nev_" + UUID.randomUUID().toString().take(6)
+                                val newShop = MockShop(
+                                    id = newShopId,
+                                    nombre = shopName,
+                                    distancia = 1500.0,
+                                    esFavorita = false,
+                                    tienePromocion = false,
+                                    horario = shopHorario,
+                                    contacto = shopContacto,
+                                    direccion = shopDireccion
+                                )
+                                repository.saveShop(newShop)
+                                reloadFromDb()
+                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
+                                onSuccess()
+                            } else if (formType == "promocion") {
+                                if (promoName.isBlank() || promoStart.isBlank() || promoEnd.isBlank()) {
+                                    errorMessage = "Nombre y fechas de inicio/fin son requeridos"
+                                    return@Button
+                                }
+                                val newPromoId = "promo_" + UUID.randomUUID().toString().take(6)
+                                val newPromo = MockPromotion(
+                                    id = newPromoId,
+                                    nombre = promoName,
+                                    fechaInicio = promoStart,
+                                    fechaFin = promoEnd,
+                                    nota = promoNote
+                                )
+                                repository.savePromotion(newPromo)
+                                reloadFromDb()
+                                triggerSync("mx.utng.snowtrail.ACTION_SYNC_NOTIFICATIONS", null, null)
+                                onSavePromotionToTv(selectedShopIdForPromo, newPromoId, promoName, promoStart, promoEnd, promoNote)
+                                onSuccess()
+                            } else { // formType == "pedido"
+                                val targetShop = shopsList.getOrNull(selectedShopIndex)
+                                if (targetShop == null) {
+                                    errorMessage = "Selecciona una nevería válida"
+                                    return@Button
+                                }
+                                if (orderProducts.isEmpty()) {
+                                    errorMessage = "Debes añadir al menos un producto al pedido"
+                                    return@Button
+                                }
+                                val orderId = UUID.randomUUID().toString().take(8)
+                                val totalAmount = orderProducts.sumOf { it.cantidad * it.precioUnitario }
+                                val newOrder = MockOrder(
+                                    id = orderId,
+                                    neveriaId = targetShop.id,
+                                    neveriaNombre = targetShop.nombre,
+                                    estado = "NUEVO",
+                                    tiempoEstimadoMinutos = 15,
+                                    fechaHoraMillis = System.currentTimeMillis(),
+                                    total = totalAmount,
+                                    productos = orderProducts.toList(),
+                                    userEmail = "Admin@gmail.com"
+                                )
+                                repository.saveOrder(newOrder)
+                                
+                                val itemsSummary = orderProducts.joinToString(", ") { "${it.cantidad}x ${it.nombre}" }
+                                onSendToTv("ADD_ORDER:${targetShop.id}|$orderId|Administrador|Para recoger: 15 min|15 min|\$${totalAmount} MXN|$itemsSummary|NUEVO")
+                                
+                                orderSentSuccessMessage = "¡Pedido $orderId enviado con éxito a la TV!"
+                                orderProducts.clear()
+                                reloadFromDb()
+                                onSuccess()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF9A9A)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (formType == "pedido") "Pedir" else "Guardar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            shopName = ""
+                            shopHorario = ""
+                            shopContacto = ""
+                            shopDireccion = ""
+                            promoName = ""
+                            promoStart = ""
+                            promoEnd = ""
+                            promoNote = ""
+                            errorMessage = ""
+                            orderProducts.clear()
+                            onSuccess()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA7B8C4)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancelar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminEditShopScreen(
+    shop: MockShop,
+    onSave: (MockShop) -> Unit,
+    onCancel: () -> Unit
+) {
+    var shopName by remember { mutableStateOf(shop.nombre) }
+    var shopHorario by remember { mutableStateOf(shop.horario) }
+    var shopContacto by remember { mutableStateOf(shop.contacto) }
+    var shopDireccion by remember { mutableStateOf(shop.direccion) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Editar Nevería",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF333333),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = shopName,
+                    onValueChange = { shopName = it },
+                    label = { Text("Nombre") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = shopHorario,
+                    onValueChange = { shopHorario = it },
+                    label = { Text("Horario") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = shopContacto,
+                    onValueChange = { shopContacto = it },
+                    label = { Text("Contacto") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = shopDireccion,
+                    onValueChange = { shopDireccion = it },
+                    label = { Text("Dirección") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (shopName.isBlank() || shopDireccion.isBlank()) {
+                                errorMessage = "Nombre y dirección son requeridos"
+                                return@Button
+                            }
+                            onSave(
+                                shop.copy(
+                                    nombre = shopName,
+                                    horario = shopHorario,
+                                    contacto = shopContacto,
+                                    direccion = shopDireccion
+                                )
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF9A9A)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Guardar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = onCancel,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA7B8C4)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancelar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminEditPromoScreen(
+    promo: MockPromotion,
+    onSave: (MockPromotion) -> Unit,
+    onCancel: () -> Unit
+) {
+    var promoName by remember { mutableStateOf(promo.nombre) }
+    var promoStart by remember { mutableStateOf(promo.fechaInicio) }
+    var promoEnd by remember { mutableStateOf(promo.fechaFin) }
+    var promoNote by remember { mutableStateOf(promo.nota) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Editar Promoción",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF333333),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = promoName,
+                    onValueChange = { promoName = it },
+                    label = { Text("Nombre de la Promoción") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = promoStart,
+                    onValueChange = { promoStart = it },
+                    label = { Text("Fecha Inicio (AAAA-MM-DD)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = promoEnd,
+                    onValueChange = { promoEnd = it },
+                    label = { Text("Fecha Fin (AAAA-MM-DD)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = promoNote,
+                    onValueChange = { promoNote = it },
+                    label = { Text("Nota / Descripción") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (promoName.isBlank() || promoStart.isBlank() || promoEnd.isBlank()) {
+                                errorMessage = "Nombre y fechas de inicio/fin son requeridos"
+                                return@Button
+                            }
+                            onSave(
+                                promo.copy(
+                                    nombre = promoName,
+                                    fechaInicio = promoStart,
+                                    fechaFin = promoEnd,
+                                    nota = promoNote
+                                )
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF9A9A)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Guardar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = onCancel,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA7B8C4)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancelar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminProfileTab(
+    activeOrder: MockOrder?,
+    notificationsList: List<MockNotification>,
+    useRealGps: Boolean,
+    userLatitude: Double,
+    userLongitude: Double,
+    onToggleRealGps: (Boolean) -> Unit,
+    onGPSMoved: (Float) -> Unit,
+    onActionTriggered: (String, String?, String?) -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .background(Color(0xFFEF9A9A), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("👑", fontSize = 30.sp)
+                }
+
+                Column {
+                    Text(text = "Administrador", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                    Text(text = "Admin@gmail.com", fontSize = 14.sp, color = Color.Gray)
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Button(
+                        onClick = onLogout,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF9A9A)),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Cerrar Sesión", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "📍 Simulador GPS", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                Spacer(modifier = Modifier.height(8.dp))
+                GPSScreen(
+                    useRealGps = useRealGps,
+                    userLat = userLatitude,
+                    userLng = userLongitude,
+                    onToggleRealGps = onToggleRealGps,
+                    onGPSMoved = onGPSMoved
+                )
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "⚙️ Simulador de Pedidos", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                Spacer(modifier = Modifier.height(8.dp))
+                SimulatorControlScreen(
+                    order = activeOrder,
+                    notifications = notificationsList,
+                    onActionTriggered = onActionTriggered
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@android.annotation.SuppressLint("NewApi")
+fun PositionstackMapScreen(shops: List<MockShop> = emptyList()) {
+    var searchQuery by remember { mutableStateOf("") }
+    var resolvedAddress by remember { mutableStateOf("Dolores Hidalgo, Gto, México") }
+    var latitude by remember { mutableDoubleStateOf(21.1561) }
+    var longitude by remember { mutableDoubleStateOf(-100.9312) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    val coroutineScope = rememberCoroutineScope()
+    val apiKey = "3819e173f0b09bac5de6773a1f641eea"
+
+    val performReverseGeocode = { lat: Double, lng: Double ->
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val url = java.net.URL("http://api.positionstack.com/v1/reverse?access_key=$apiKey&query=$lat,$lng")
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+
+                val responseCode = connection.responseCode
+                if (responseCode == 200) {
+                    val stream = connection.inputStream
+                    val reader = java.io.BufferedReader(java.io.InputStreamReader(stream))
+                    val sb = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        sb.append(line)
+                    }
+                    reader.close()
+                    stream.close()
+
+                    val json = org.json.JSONObject(sb.toString())
+                    val data = json.optJSONArray("data")
+                    if (data != null && data.length() > 0) {
+                        val first = data.getJSONObject(0)
+                        val label = first.optString("label", "$lat, $lng")
+                        withContext(Dispatchers.Main) {
+                            resolvedAddress = label
+                        }
+                    }
+                }
+                connection.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    val performForwardGeocode = { query: String ->
+        if (query.isNotBlank()) {
+            isLoading = true
+            errorMessage = ""
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    val restrictedQuery = if (query.lowercase().contains("dolores hidalgo")) {
+                        query.trim()
+                    } else {
+                        "${query.trim()}, Dolores Hidalgo, Gto, México"
+                    }
+                    val encodedQuery = java.net.URLEncoder.encode(restrictedQuery, "UTF-8")
+                    val url = java.net.URL("http://api.positionstack.com/v1/forward?access_key=$apiKey&query=$encodedQuery")
+                    val connection = url.openConnection() as java.net.HttpURLConnection
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+
+                    val responseCode = connection.responseCode
+                    if (responseCode == 200) {
+                        val stream = connection.inputStream
+                        val reader = java.io.BufferedReader(java.io.InputStreamReader(stream))
+                        val sb = StringBuilder()
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            sb.append(line)
+                        }
+                        reader.close()
+                        stream.close()
+
+                        val json = org.json.JSONObject(sb.toString())
+                        val data = json.optJSONArray("data")
+                        if (data != null && data.length() > 0) {
+                            val first = data.getJSONObject(0)
+                            val lat = first.optDouble("latitude", 21.1561)
+                            val lng = first.optDouble("longitude", -100.9312)
+                            val label = first.optString("label", query)
+                            withContext(Dispatchers.Main) {
+                                latitude = lat
+                                longitude = lng
+                                resolvedAddress = label
+                                isLoading = false
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                errorMessage = "No se encontraron resultados en Positionstack"
+                                isLoading = false
+                            }
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            errorMessage = "Error de API: código $responseCode"
+                            isLoading = false
+                        }
+                    }
+                    connection.disconnect()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        errorMessage = "Error de conexión: ${e.message}"
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        performReverseGeocode(latitude, longitude)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MobileThemeColors.OffWhiteVanilla)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MobileThemeColors.PureWhiteCard),
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, MobileThemeColors.IceCreamPink),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Buscador Geográfico (Positionstack)",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MobileThemeColors.CocoaDarkText
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Ej. Centro, Alameda") },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MobileThemeColors.IceCreamPink,
+                            focusedTextColor = MobileThemeColors.CocoaDarkText,
+                            unfocusedTextColor = MobileThemeColors.CocoaDarkText
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Button(
+                        onClick = { performForwardGeocode(searchQuery) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PinkText),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(56.dp)
+                    ) {
+                        Text("Buscar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (isLoading) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MobileThemeColors.PinkText
+                    )
+                }
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(
+                        text = errorMessage,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(MobileThemeColors.IceCreamPink, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("📍", fontSize = 18.sp)
+                    }
+                    Column {
+                        Text(
+                            text = resolvedAddress,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MobileThemeColors.CocoaDarkText,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Lat: ${String.format("%.4f", latitude)} | Lng: ${String.format("%.4f", longitude)}",
+                            fontSize = 11.sp,
+                            color = MobileThemeColors.CocoaLightText
+                        )
+                    }
+                }
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MobileThemeColors.PureWhiteCard),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, MobileThemeColors.IceCreamPink),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxSize()
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    android.webkit.WebView(ctx).apply {
+                        layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.databaseEnabled = true
+                        settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        webViewClient = android.webkit.WebViewClient()
+                        webChromeClient = android.webkit.WebChromeClient()
+                    }
+                },
+                update = { webView ->
+                    val shopCoords = mapOf(
+                        "nev_los_abuelos" to Pair(21.1565, -100.9312),
+                        "nev_la_mich" to Pair(21.1585, -100.9300),
+                        "nev_zero" to Pair(21.1640, -100.9350),
+                        "nev_artis" to Pair(21.1400, -100.9150),
+                        "nev_far" to Pair(21.1200, -100.9500),
+                        "nev_centenario" to Pair(21.1750, -100.9200),
+                        "nev_gelato" to Pair(21.1850, -100.9400),
+                        "nev_antonio" to Pair(21.1500, -100.9450),
+                        "nev_copo" to Pair(21.1450, -100.9200),
+                        "nev_flor" to Pair(21.2200, -100.9000)
+                    )
+
+                    val markersJs = StringBuilder()
+                    shops.forEach { shop ->
+                        val coords = shopCoords[shop.id] ?: Pair(21.1561, -100.9312)
+                        val titleEscaped = shop.nombre.replace("'", "\\'")
+                        val descEscaped = "Horario: ${shop.horario.replace("'", "\\'")}\\nDirección: ${shop.direccion.replace("'", "\\'")}"
+                        markersJs.append("""
+                            L.marker([${coords.first}, ${coords.second}], {icon: iceCreamIcon})
+                                .addTo(map)
+                                .bindPopup("<b>🍦 $titleEscaped</b><br>$descEscaped");
+                        """.trimIndent() + "\n")
+                    }
+
+                    val resolvedAddressEscaped = resolvedAddress
+                        .replace("\\", "\\\\")
+                        .replace("'", "\\'")
+                        .replace("\"", "\\\"")
+                        .replace("\n", " ")
+                        .replace("\r", " ")
+
+                    val htmlContent = """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="utf-8" />
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+                            <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+                            <style>
+                                html, body {
+                                    width: 100%;
+                                    height: 100%;
+                                    margin: 0;
+                                    padding: 0;
+                                }
+                                #map {
+                                    width: 100vw;
+                                    height: 100vh;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div id="map"></div>
+                            <script>
+                                var map = L.map('map').setView([$latitude, $longitude], 14);
+                                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    attribution: '© OpenStreetMap'
+                                }).addTo(map);
+                                
+                                var redIcon = L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                    iconSize: [25, 41],
+                                    iconAnchor: [12, 41],
+                                    popupAnchor: [1, -34],
+                                    shadowSize: [41, 41]
+                                });
+                                
+                                var iceCreamIcon = L.divIcon({
+                                    html: '<div style="background-color: white; border: 2.5px solid #EF9A9A; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 20px;">🍦</div>',
+                                    className: 'custom-div-icon',
+                                    iconSize: [36, 36],
+                                    iconAnchor: [18, 18],
+                                    popupAnchor: [0, -18]
+                                });
+                                L.marker([$latitude, $longitude], {icon: redIcon}).addTo(map)
+                                    .bindPopup("<b>📍 Ubicación Buscada</b><br>$resolvedAddressEscaped")
+                                    .openPopup();
+                                
+                                $markersJs
+                            </script>
+                        </body>
+                        </html>
+                    """.trimIndent()
+                    webView.loadDataWithBaseURL("https://unpkg.com/", htmlContent, "text/html", "utf-8", null)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+fun AdminOrdersHistoryTab(
+    repository: SnowTrailRepository,
+    reloadFromDb: () -> Unit
+) {
+    var allOrders by remember { mutableStateOf(emptyList<MockOrder>()) }
+    
+    fun refreshOrders() {
+        allOrders = repository.getAllOrders()
+    }
+    
+    LaunchedEffect(Unit) {
+        refreshOrders()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "📋 Historial de Pedidos por Usuario", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                    
+                    TextButton(
+                        onClick = {
+                            repository.clearOrdersHistory()
+                            refreshOrders()
+                            reloadFromDb()
+                        }
+                    ) {
+                        Text("Borrar Todo", color = Color.Red, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                Divider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                
+                if (allOrders.isNotEmpty()) {
+                    val grouped = allOrders.groupBy { it.userEmail }
+                    
+                    grouped.forEach { (email, ordersGroup) ->
+                        Text(
+                            text = "👤 Usuario: $email",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFEF9A9A),
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                        
+                        ordersGroup.forEach { o ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+                                border = BorderStroke(0.5.dp, Color.LightGray),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(text = "Pedido: #${o.id}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    when (o.estado) {
+                                                        "NUEVO" -> Color(0xFFE8F5E9)
+                                                        "PENDIENTE" -> Color(0xFFFFFDE7)
+                                                        "RECHAZADO" -> Color(0xFFFFEBEE)
+                                                        else -> Color(0xFFE3F2FD)
+                                                    },
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = o.estado,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when (o.estado) {
+                                                    "NUEVO" -> Color(0xFF2E7D32)
+                                                    "PENDIENTE" -> Color(0xFFF57F17)
+                                                    "RECHAZADO" -> Color(0xFFC62828)
+                                                    else -> Color(0xFF1565C0)
+                                                }
+                                            )
+                                        }
+                                    }
+                                    
+                                    Text(text = "🏪 Nevería: ${o.neveriaNombre}", fontSize = 11.sp, color = Color.DarkGray)
+                                    
+                                    val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                                    val dateStr = sdf.format(java.util.Date(o.fechaHoraMillis))
+                                    Text(text = "📅 Fecha: $dateStr", fontSize = 11.sp, color = Color.Gray)
+                                    
+                                    val prodStr = o.productos.joinToString(", ") { "${it.cantidad}x ${it.nombre}" }
+                                    Text(text = "🛍️ Items: $prodStr", fontSize = 11.sp, color = Color.DarkGray)
+                                    Text(text = "💵 Total: $${o.total}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB52D5E))
+                                }
+                            }
+                        }
+                        Divider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No hay pedidos registrados en el historial.", fontSize = 14.sp, color = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+

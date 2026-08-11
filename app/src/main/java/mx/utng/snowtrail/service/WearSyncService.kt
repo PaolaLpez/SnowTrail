@@ -35,18 +35,26 @@ class WearSyncService : WearableListenerService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(tag, "WearSyncService iniciado en el teléfono.")
-        repository.initializeDemoDataIfEmpty()
-        loadDataFromDatabase()
-        syncAllData()
+        try {
+            Log.d(tag, "WearSyncService iniciado en el teléfono.")
+            repository.initializeDemoDataIfEmpty()
+            loadDataFromDatabase()
+            syncAllData()
+        } catch (e: Exception) {
+            Log.e(tag, "Error en onCreate de WearSyncService", e)
+        }
     }
 
     private fun loadDataFromDatabase() {
-        activeOrderState = repository.getActiveOrder()
-        mockShops.clear()
-        mockShops.addAll(repository.getShops())
-        mockNotifications.clear()
-        mockNotifications.addAll(repository.getNotifications())
+        try {
+            activeOrderState = repository.getActiveOrder()
+            mockShops.clear()
+            mockShops.addAll(repository.getShops())
+            mockNotifications.clear()
+            mockNotifications.addAll(repository.getNotifications())
+        } catch (e: Exception) {
+            Log.e(tag, "Error en loadDataFromDatabase de WearSyncService", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -419,7 +427,8 @@ data class MockOrder(
     val tiempoEstimadoMinutos: Long,
     val fechaHoraMillis: Long,
     val total: Double,
-    val productos: List<MockProductLine>
+    val productos: List<MockProductLine>,
+    val userEmail: String = "Cliente@gmail.com"
 )
 
 data class MockProductLine(
@@ -433,7 +442,10 @@ data class MockShop(
     val nombre: String,
     var distancia: Double,
     var esFavorita: Boolean,
-    val tienePromocion: Boolean
+    val tienePromocion: Boolean,
+    val horario: String = "9:00 AM - 9:00 PM",
+    val contacto: String = "55 1234 5678, correo@neveria.com",
+    val direccion: String = "Av. Principal 123"
 )
 
 data class MockNotification(
@@ -442,4 +454,12 @@ data class MockNotification(
     val tipo: String, // CAMBIO_ESTADO, PROMOCION, PROXIMIDAD
     var leida: Boolean,
     val fechaEnvio: Long
+)
+
+data class MockPromotion(
+    val id: String = "",
+    val nombre: String = "",
+    val fechaInicio: String = "",
+    val fechaFin: String = "",
+    val nota: String = ""
 )
