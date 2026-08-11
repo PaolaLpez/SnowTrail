@@ -272,7 +272,8 @@ class MainActivity : ComponentActivity() {
                              "nev_gelato" to Pair(21.1850, -100.9100),
                              "nev_antonio" to Pair(21.1650, -100.9450),
                              "nev_copo" to Pair(21.1350, -100.9200),
-                             "nev_flor" to Pair(21.2100, -100.8800)
+                             "nev_flor" to Pair(21.2100, -100.8800),
+                             "nev_helarte" to Pair(21.1575, -100.9320)
                         )
                         shopCoords.forEach { (id, coords) ->
                             val results = FloatArray(1)
@@ -372,7 +373,8 @@ class MainActivity : ComponentActivity() {
                                     "nev_gelato" to 3800.0,
                                     "nev_antonio" to 1800.0,
                                     "nev_copo" to 2600.0,
-                                    "nev_flor" to 8000.0
+                                    "nev_flor" to 8000.0,
+                                    "nev_helarte" to 150.0
                                 )
                                 basePositions.forEach { (id, basePos) ->
                                      repository.updateShopDistance(id, basePos)
@@ -391,7 +393,8 @@ class MainActivity : ComponentActivity() {
                                 "nev_gelato" to 3800.0,
                                 "nev_antonio" to 1800.0,
                                 "nev_copo" to 2600.0,
-                                "nev_flor" to 8000.0
+                                "nev_flor" to 8000.0,
+                                "nev_helarte" to 150.0
                             )
                             simulatedBasePositions.forEach { (id, basePos) ->
                                 val newDistance = kotlin.math.abs(sliderValue.toDouble() - basePos)
@@ -631,7 +634,8 @@ class MainActivity : ComponentActivity() {
                                                                 "nev_gelato" to 3800.0,
                                                                 "nev_antonio" to 1800.0,
                                                                 "nev_copo" to 2600.0,
-                                                                "nev_flor" to 8000.0
+                                                                "nev_flor" to 8000.0,
+                                                                "nev_helarte" to 150.0
                                                             )
                                                             basePositions.forEach { (id, basePos) ->
                                                                  repository.updateShopDistance(id, basePos)
@@ -650,7 +654,8 @@ class MainActivity : ComponentActivity() {
                                                             "nev_gelato" to 3800.0,
                                                             "nev_antonio" to 1800.0,
                                                             "nev_copo" to 2600.0,
-                                                            "nev_flor" to 8000.0
+                                                            "nev_flor" to 8000.0,
+                                                            "nev_helarte" to 150.0
                                                         )
                                                         simulatedBasePositions.forEach { (id, basePos) ->
                                                             val newDistance = kotlin.math.abs(sliderValue.toDouble() - basePos)
@@ -1204,14 +1209,25 @@ fun ShopDetailScreen(
 ) {
     val shop = shops.find { it.id == shopId } ?: return
     
-    // Hardcoded products catalog matching the shop
-    val catalog = listOf(
-        CatalogItem("Nieve de Guanábana Especial", "Nieve", "Sabor clásico refrescante", 45.0),
-        CatalogItem("Helado de Chocolate Belga", "Helado", "Sabor cremoso e intenso", 60.0),
-        CatalogItem("Paleta de Fresas con Crema", "Paleta", "Con trozos naturales de fruta", 35.0),
-        CatalogItem("Nieve de Limón con Chía", "Nieve", "Deliciosa y muy refrescante", 40.0),
-        CatalogItem("Helado de Pistache Premium", "Helado", "Cremoso con trocitos tostados", 65.0)
-    )
+    // Products catalog matching the selected shop
+    val catalog = if (shop.id == "nev_helarte" || shop.nombre.contains("HELARTE", ignoreCase = true)) {
+        listOf(
+            CatalogItem("Copa Helarte Suprema (3 Bolas)", "Helado", "Vainilla, Fresa y Menta con fudge y chispas", 65.0),
+            CatalogItem("Cono Tradición Artesanal", "Helado", "Doble bola en barquillo crujiente con cobertura", 48.0),
+            CatalogItem("Sundae Especial de Chocolate", "Helado", "Bañado en salsa de chocolate y nueces selectas", 55.0),
+            CatalogItem("Nieve de Fresa Silvestre", "Nieve", "100% fruta natural artesanal estilo Dolores", 38.0),
+            CatalogItem("Paleta Rellena de Crema Helarte", "Paleta", "Rellena de chocolate y centro cremoso", 32.0),
+            CatalogItem("Litro Familiar Helarte", "Helado", "Combina hasta 3 sabores a tu gusto", 140.0)
+        )
+    } else {
+        listOf(
+            CatalogItem("Nieve de Guanábana Especial", "Nieve", "Sabor clásico refrescante", 45.0),
+            CatalogItem("Helado de Chocolate Belga", "Helado", "Sabor cremoso e intenso", 60.0),
+            CatalogItem("Paleta de Fresas con Crema", "Paleta", "Con trozos naturales de fruta", 35.0),
+            CatalogItem("Nieve de Limón con Chía", "Nieve", "Deliciosa y muy refrescante", 40.0),
+            CatalogItem("Helado de Pistache Premium", "Helado", "Cremoso con trocitos tostados", 65.0)
+        )
+    }
 
     val cart = remember { mutableStateListOf<CartLine>() }
 

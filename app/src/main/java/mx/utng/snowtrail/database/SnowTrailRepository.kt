@@ -318,7 +318,8 @@ class SnowTrailRepository(context: Context) {
             MockShop("nev_gelato", "Gelato Italiano", 3800.0, false, true, "Lun-Dom 11:00 - 23:00", "418 888 9999, gelato@italiano.com", "Boulevard Tulipanes #890"),
             MockShop("nev_antonio", "Paletería San Antonio", 1800.0, false, false, "Lun-Sáb 10:00 - 21:00", "418 222 3333, antoniopaletas@gmail.com", "San Antonio #12"),
             MockShop("nev_copo", "El Copo Dorado", 2600.0, false, false, "Lun-Dom 10:00 - 22:00", "418 444 5555, copo@dorado.com", "Calzada de la Estación #104"),
-            MockShop("nev_flor", "Flor de Dolores", 8000.0, false, false, "Lun-Dom 9:00 - 21:00", "418 666 7777, flordelores@outlook.com", "Av. Guanajuato #12")
+            MockShop("nev_flor", "Flor de Dolores", 8000.0, false, false, "Lun-Dom 9:00 - 21:00", "418 666 7777, flordelores@outlook.com", "Av. Guanajuato #12"),
+            MockShop("nev_helarte", "HELARTE", 150.0, false, true, "Lun-Dom 10:00 - 22:00", "418 123 7890, contacto@helarte.mx", "Plaza Principal #8, Centro Dolores Hidalgo")
         )
         for (shop in initialShops) {
             saveShop(shop)
@@ -331,6 +332,12 @@ class SnowTrailRepository(context: Context) {
             MockPromotion("pa3", "Nieve de Limón Gigante", "2026-08-01", "2026-08-31", "Nieve tradicional estilo Dolores"),
             MockPromotion("pa4", "Malteada Clásica de Vainilla", "2026-08-05", "2026-08-25", "Lunes a jueves a mitad de precio"),
             MockPromotion("pa5", "Paleta de Cajeta Quemada", "2026-08-01", "2026-08-20", "Prueba la receta original de la casa"),
+
+            MockPromotion("ph1", "Copa Helarte Suprema (3 Bolas + Fudge)", "2026-08-01", "2026-08-31", "Tradición y calidad en cada cucharada"),
+            MockPromotion("ph2", "Cono Artesanal 2x1 en Especiales", "2026-08-01", "2026-08-30", "Vainilla, Fresa y Menta con chispitas"),
+            MockPromotion("ph3", "Sundae Especial de Chocolate", "2026-08-05", "2026-08-28", "Por solo $45 MXN con salsa caliente"),
+            MockPromotion("ph4", "Paleta Rellena de Crema Helarte", "2026-08-01", "2026-08-25", "Lleva 3 por solo $50 pesos"),
+            MockPromotion("ph5", "Litro Helarte Familiar 20% OFF", "2026-08-10", "2026-08-31", "Sabores combinados a elegir para llevar"),
 
             MockPromotion("pm1", "Brownie Split Deluxe: \$59 MXN", "2026-08-01", "2026-08-31", "Con bola de vainilla y fudge caliente"),
             MockPromotion("pm2", "Combo 3 Paletas de Agua", "2026-08-01", "2026-08-31", "Por solo \$35 pesos en sabores frutales"),

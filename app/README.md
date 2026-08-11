@@ -19,10 +19,10 @@ graph TD
 
 ---
 
-### 📄 `gradle/libs.versions.toml` (Version Catalog)
+### 📄 `gradle/libs.versions.toml` (Version Catalog Centralizado)
 * **Ubicación:** `gradle/libs.versions.toml`
-* **Propósito:** Catálogo centralizado que unifica versiones, dependencias y plugins entre `:app`, `:wear` y `:tv`.
-* **Contenido y Código:**
+* **Propósito:** Catálogo centralizado que unifica las versiones, dependencias y plugins entre los módulos `:app`, `:wear` y `:tv`, asegurando compatibilidad binaria y evitando conflictos de versiones.
+* **Contenido y Código Completo:**
 ```toml
 [versions]
 agp = "9.2.1"
@@ -43,6 +43,12 @@ ui = { group = "androidx.compose.ui", name = "ui" }
 ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
+compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "composeFoundation" }
+compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooling", version.ref = "composeUiTooling" }
+wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearToolingPreview" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 
@@ -51,12 +57,23 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ```
 
+#### 🔍 Desglose y Utilidad de lo añadido en `libs.versions.toml`:
+| Elemento Añadido | Tipo | ¿Para qué ayuda y qué hace? |
+| :--- | :--- | :--- |
+| `agp = "9.2.1"` | Plugin | **Android Gradle Plugin**: Motor de compilación principal para construir los APKs en Android Studio. |
+| `kotlin = "2.2.10"` | Plugin | **Kotlin Compiler & Compose Compiler Plugin**: Habilita el compilador nativo de Kotlin 2.x y el plugin de Compose integrado sin necesidad de extensiones externas. |
+| `playServicesWearable = "20.0.1"` | Librería | **Google Play Services Wearable**: Habilita la comunicación por Data Client, Message Client y sincronización de nodos entre el teléfono y el reloj Wear OS. |
+| `composeBom = "2024.09.00"` | BOM | **Compose Bill of Materials**: Garantiza que todas las librerías de interfaz de Jetpack Compose usen versiones compatibles entre sí de forma automática. |
+| `activityCompose = "1.13.0"` | Librería | **Activity Compose (`setContent`)**: Permite enlazar actividades de Android (`ComponentActivity`) directamente con las funciones `@Composable`. |
+| `coreSplashscreen = "1.2.0"` | Librería | **Splash Screen API**: Controla la pantalla de carga inicial animada de la app en Android 12 y superiores. |
+| `composeMaterial3` / `composeFoundation` | Librería | **Wear OS Compose Suite**: Provee controles visuales adaptados a pantallas circulares para el reloj inteligente. |
+
 ---
 
 ### 📄 `app/build.gradle.kts` (Build Script del Módulo Móvil)
 * **Ubicación:** `app/build.gradle.kts`
-* **Propósito:** Configura el SDK de compilación (Android 36), Java 17, soporte de Jetpack Compose y las librerías de interfaz, red y base de datos.
-* **Contenido y Código:**
+* **Propósito:** Configura el SDK de compilación (Android 36), Java 17, soporte de Jetpack Compose y las librerías de interfaz, red y base de datos para el teléfono.
+* **Contenido y Código Completo:**
 ```kotlin
 plugins {
     alias(libs.plugins.android.application)
@@ -87,26 +104,55 @@ android {
 
 dependencies {
     implementation(project(":shared"))
+    
+    // Play Services Wearable
     implementation(libs.play.services.wearable)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Firebase Firestore
     implementation("com.google.firebase:firebase-firestore-ktx:24.10.1")
+    
+    // Room components
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
+    
+    // Lifecycle components
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    
+    // Compose general dependencies
     implementation(platform(libs.compose.bom))
     implementation(libs.activity.compose)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
+    
+    // Material 3 for Phone
     implementation("androidx.compose.material3:material3:1.2.0")
     implementation("androidx.compose.material:material-icons-extended")
+    
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation(libs.core.splashscreen)
+
+    testImplementation("junit:junit:4.13.2")
 }
 ```
+
+#### 🔍 Desglose y Utilidad de las Dependencias añadidas en `:app`:
+| Dependencia Añadida | Propósito Técnico | Beneficio en la App Móvil |
+| :--- | :--- | :--- |
+| `implementation(project(":shared"))` | Módulo compartido | Comparte modelos de datos unificados entre Celular, Reloj y TV. |
+| `libs.play.services.wearable` | Wearable Data Layer | Permite al celular enviar cambios de proximidad GPS, pedidos y ofertas hacia el smartwatch. |
+| `kotlinx-coroutines-play-services` | Corrutinas asíncronas | Convierte las tareas de Play Services (`Task<T>`) en llamadas `await()` no bloqueantes en Kotlin. |
+| `firebase-firestore-ktx` | Firebase SDK | Habilita sincronización y almacenamiento cloud para órdenes y promociones en la nube. |
+| `room-runtime` y `room-ktx` | Base de datos Room | Abstracción moderna ORM sobre SQLite para consultas reactivas con corrutinas y Flow. |
+| `lifecycle-service` | Servicios en segundo plano | Permite a `WearSyncService` ejecutar tareas de fondo sincronizadas con el ciclo de vida de Android. |
+| `compose-material3:1.2.0` | Sistema de Diseño M3 | Provee tarjetas `Card`, botones `Button`, campos de texto `OutlinedTextField` y paleta de colores pastel. |
+| `material-icons-extended` | Catálogo de Íconos | Provee íconos completos (tiendas, estrellas, helados, GPS, ubicaciones, candados, etc.). |
+| `appcompat:1.6.1` | Compatibilidad Android | Asegura compatibilidad de estilos base y soporte para pantallas de diálogo y fragmentos. |
+| `core-splashscreen` | Splash Screen | Brinda la transición visual suave al abrir la app en el celular. |
 
 ---
 

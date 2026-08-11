@@ -19,13 +19,61 @@ graph LR
 
 ---
 
+### 📄 `gradle/libs.versions.toml` (Version Catalog Centralizado)
+* **Ubicación:** `gradle/libs.versions.toml`
+* **Propósito:** Catálogo centralizado que unifica las versiones, dependencias y plugins de Wear OS con el resto del proyecto.
+* **Contenido y Código Completo:**
+```toml
+[versions]
+agp = "9.2.1"
+playServicesWearable = "20.0.1"
+kotlin = "2.2.10"
+composeBom = "2024.09.00"
+composeMaterial3 = "1.5.6"
+composeFoundation = "1.5.6"
+composeUiTooling = "1.5.6"
+wearToolingPreview = "1.0.0"
+activityCompose = "1.13.0"
+coreSplashscreen = "1.2.0"
+
+[libraries]
+play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+ui = { group = "androidx.compose.ui", name = "ui" }
+ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
+compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "composeFoundation" }
+compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooling", version.ref = "composeUiTooling" }
+wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearToolingPreview" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+```
+
+#### 🔍 Desglose y Utilidad para Wear OS:
+| Elemento Añadido | Tipo | ¿Para qué ayuda en el Smartwatch? |
+| :--- | :--- | :--- |
+| `playServicesWearable = "20.0.1"` | Librería | **Data Layer & Message Client**: Recibe en segundo plano las promociones y pedidos enviados desde el celular. |
+| `composeMaterial3` / `composeFoundation` | Librería | **Wear Compose Suite**: Componentes circulares (`ScalingLazyColumn`, `Chip`, `Card`) optimizados para reloj. |
+| `wearToolingPreview = "1.0.0"` | Tooling | **Previsualización de Wearables**: Renderiza previsualizaciones en Android Studio en formatos redondos y cuadrados. |
+| `activityCompose = "1.13.0"` | Librería | **Activity Compose (`setContent`)**: Vincula el ciclo de vida del reloj con Compose UI. |
+
+---
+
 ### 📄 `wear/build.gradle.kts` (Build Script del Módulo Smartwatch)
 * **Ubicación:** `wear/build.gradle.kts`
-* **Propósito:** Configura el SDK 36, minSdk 30 (Wear OS 3.0+) y las librerías de Material 3 y Foundation para Wear OS.
-* **Contenido y Código:**
+* **Propósito:** Configura el SDK 36, minSdk 30 (Wear OS 3.0+), Java 17 y las librerías de interfaz táctil y física para reloj inteligente.
+* **Contenido y Código Completo:**
 ```kotlin
 plugins {
-    alias(libs.plugins.android.application)
+    id("com.android.application")
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -53,14 +101,40 @@ android {
 
 dependencies {
     implementation(project(":shared"))
+
+    // Play Services Wearable from Version Catalog
     implementation(libs.play.services.wearable)
-    implementation(libs.compose.material3)
-    implementation(libs.compose.foundation)
-    implementation(libs.wear.tooling.preview)
-    implementation(libs.activity.compose)
-    implementation(libs.core.splashscreen)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Wear OS Compose dependencies
+    implementation("androidx.wear.compose:compose-material:1.3.0")
+    implementation("androidx.wear.compose:compose-foundation:1.3.0")
+    implementation("androidx.wear.compose:compose-navigation:1.3.0")
+
+    // Compose general dependencies
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.compose.ui:ui:1.6.1")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.6.1")
+    implementation("androidx.compose.foundation:foundation:1.6.1")
+    implementation("androidx.compose.material:material-icons-extended:1.6.1")
+
+    // Wear OS native UI components support
+    implementation("androidx.wear:wear:1.3.0")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
 }
 ```
+
+#### 🔍 Desglose y Utilidad de las Dependencias añadidas en `:wear`:
+| Dependencia Añadida | Propósito Técnico | Beneficio en el Smartwatch |
+| :--- | :--- | :--- |
+| `implementation(project(":shared"))` | Módulo compartido | Provee los modelos de datos compartidos (`WearDataListenerService`, `WearShop`). |
+| `libs.play.services.wearable` | Wearable Data Layer | Escucha mensajes `/snowtrail/proximity_alert`, `/snowtrail/sync_promotions` y `/snowtrail/order_status`. |
+| `kotlinx-coroutines-play-services` | Asincronía Kotlin | Permite enviar respuestas al celular mediante corrutinas sin congelar la pantalla táctil del reloj. |
+| `compose-foundation:1.6.1` | Modificadores avanzados | Habilita el modificador `Modifier.basicMarquee()` para que los textos largos se deslicen de forma continua. |
+| `wear:1.3.0` | Soporte de Hardware | Soporta los botones físicos laterales del reloj (Stem Keys) y la corona giratoria (Rotary Input). |
+| `material-icons-extended` | Íconos | Provee íconos compactos de helados, cupones, notificaciones y tiendas en el reloj. |
 
 ---
 

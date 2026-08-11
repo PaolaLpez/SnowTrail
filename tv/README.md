@@ -23,10 +23,58 @@ graph TD
 
 ---
 
+### 📄 `gradle/libs.versions.toml` (Version Catalog Centralizado)
+* **Ubicación:** `gradle/libs.versions.toml`
+* **Propósito:** Catálogo centralizado que unifica las versiones, dependencias y plugins del módulo de Android TV con el resto de plataformas.
+* **Contenido y Código Completo:**
+```toml
+[versions]
+agp = "9.2.1"
+playServicesWearable = "20.0.1"
+kotlin = "2.2.10"
+composeBom = "2024.09.00"
+composeMaterial3 = "1.5.6"
+composeFoundation = "1.5.6"
+composeUiTooling = "1.5.6"
+wearToolingPreview = "1.0.0"
+activityCompose = "1.13.0"
+coreSplashscreen = "1.2.0"
+
+[libraries]
+play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+ui = { group = "androidx.compose.ui", name = "ui" }
+ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
+compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "composeFoundation" }
+compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooling", version.ref = "composeUiTooling" }
+wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearToolingPreview" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+```
+
+#### 🔍 Desglose y Utilidad para Android TV:
+| Elemento Añadido | Tipo | ¿Para qué ayuda en Android TV? |
+| :--- | :--- | :--- |
+| `agp = "9.2.1"` | Plugin | **Android Gradle Plugin**: Compila el módulo `:tv` y genera el APK `tv-debug.apk`. |
+| `kotlin-compose` | Plugin | **Compose Compiler Plugin**: Permite construir la interfaz de pantalla grande usando programación declarativa reactiva. |
+| `composeBom = "2024.09.00"` | BOM | **Compose BOM**: Mantiene sincronizadas las librerías de UI, gráficos y animación de la televisión. |
+| `activityCompose = "1.13.0"` | Librería | **Activity Compose**: Enlaza la actividad de TV (`ComponentActivity`) con la UI dividida de Compose. |
+
+---
+
 ### 📄 `tv/build.gradle.kts` (Build Script del Módulo TV)
 * **Ubicación:** `tv/build.gradle.kts`
 * **Propósito:** Configura la compilación para Android TV con Jetpack Compose y dependencias Material 3.
-* **Contenido y Código:**
+* **Contenido y Código Completo:**
 ```kotlin
 plugins {
     alias(libs.plugins.android.application)
@@ -57,18 +105,33 @@ android {
 
 dependencies {
     implementation(project(":shared"))
+    
+    // Compose general dependencies
     implementation(platform(libs.compose.bom))
     implementation(libs.activity.compose)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
+    
+    // Material 3 for Compose
     implementation("androidx.compose.material3:material3:1.2.0")
     implementation("androidx.compose.material:material-icons-extended")
+    
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
 }
 ```
+
+#### 🔍 Desglose y Utilidad de las Dependencias añadidas en `:tv`:
+| Dependencia Añadida | Propósito Técnico | Beneficio en Android TV |
+| :--- | :--- | :--- |
+| `implementation(project(":shared"))` | Módulo compartido | Provee modelos unificados de datos (`TvOrder`, `TvPromotion`). |
+| `platform(libs.compose.bom)` | Bill of Materials | Asegura que la renderización de fuentes grandes en 1080p / 4K sea nítida y fluida a 60 fps. |
+| `compose.material3:1.2.0` | Sistema de Diseño M3 | Provee las tarjetas oscuras estilizadas, bordes degradados y tipografías para la pantalla de mostrador. |
+| `material-icons-extended` | Íconos extendidos | Íconos de tienda, campanas de notificación, heladerías y relojes en la TV. |
+| `core-ktx:1.12.0` | Extensiones de Kotlin | Simplifica el manejo de hilos en segundo plano para el **Servidor Socket TCP en el puerto 9090**. |
+| `appcompat:1.6.1` | Compatibilidad Android | Brinda compatibilidad con Android TV OS y emuladores de Google TV. |
 
 ---
 
