@@ -8,13 +8,20 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "snowtrail.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 5
 
         // Tables
+        const val TABLE_USERS = "users"
         const val TABLE_SHOPS = "shops"
         const val TABLE_ORDERS = "orders"
         const val TABLE_ORDER_PRODUCTS = "order_products"
         const val TABLE_NOTIFICATIONS = "notifications"
+        const val TABLE_PROMOTIONS = "promotions"
+
+        // Users columns
+        const val USER_EMAIL = "email"
+        const val USER_PASSWORD = "password"
+        const val USER_ROLE = "role"
 
         // Shops columns
         const val SHOP_ID = "id"
@@ -22,6 +29,16 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val SHOP_DISTANCE = "distancia"
         const val SHOP_FAVORITE = "es_favorita"
         const val SHOP_PROMOTION = "tiene_promocion"
+        const val SHOP_HORARIO = "horario"
+        const val SHOP_CONTACTO = "contacto"
+        const val SHOP_DIRECCION = "direccion"
+
+        // Promotions columns
+        const val PROMO_ID = "id"
+        const val PROMO_NAME = "nombre"
+        const val PROMO_START = "fecha_inicio"
+        const val PROMO_END = "fecha_fin"
+        const val PROMO_NOTE = "nota"
 
         // Orders columns
         const val ORDER_ID = "id"
@@ -54,7 +71,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 $SHOP_NAME TEXT,
                 $SHOP_DISTANCE REAL,
                 $SHOP_FAVORITE INTEGER DEFAULT 0,
-                $SHOP_PROMOTION INTEGER DEFAULT 0
+                $SHOP_PROMOTION INTEGER DEFAULT 0,
+                $SHOP_HORARIO TEXT,
+                $SHOP_CONTACTO TEXT,
+                $SHOP_DIRECCION TEXT
             )
         """.trimIndent()
 
@@ -66,7 +86,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 $ORDER_STATUS TEXT,
                 $ORDER_ETA INTEGER,
                 $ORDER_TIMESTAMP INTEGER,
-                $ORDER_TOTAL REAL
+                $ORDER_TOTAL REAL,
+                user_email TEXT DEFAULT 'Cliente@gmail.com'
             )
         """.trimIndent()
 
@@ -91,17 +112,43 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             )
         """.trimIndent()
 
+        val createUsersTable = """
+            CREATE TABLE $TABLE_USERS (
+                $USER_EMAIL TEXT PRIMARY KEY,
+                $USER_PASSWORD TEXT,
+                $USER_ROLE TEXT
+            )
+        """.trimIndent()
+
+        val createPromotionsTable = """
+            CREATE TABLE $TABLE_PROMOTIONS (
+                $PROMO_ID TEXT PRIMARY KEY,
+                $PROMO_NAME TEXT,
+                $PROMO_START TEXT,
+                $PROMO_END TEXT,
+                $PROMO_NOTE TEXT
+            )
+        """.trimIndent()
+
         db.execSQL(createShopsTable)
         db.execSQL(createOrdersTable)
         db.execSQL(createOrderProductsTable)
         db.execSQL(createNotificationsTable)
+        db.execSQL(createUsersTable)
+        db.execSQL(createPromotionsTable)
+
+        // Seed Admin user
+        val seedAdmin = "INSERT INTO $TABLE_USERS ($USER_EMAIL, $USER_PASSWORD, $USER_ROLE) VALUES ('Admin@gmail.com', 'admin123', 'ADMIN')"
+        db.execSQL(seedAdmin)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_USERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDER_PRODUCTS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_SHOPS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_NOTIFICATIONS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_PROMOTIONS")
         onCreate(db)
     }
 }
