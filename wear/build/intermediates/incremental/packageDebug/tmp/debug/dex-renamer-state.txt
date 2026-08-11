@@ -1,4 +1,4 @@
-#Thu Jun 25 22:25:06 CST 2026
+#Thu Aug 06 00:12:49 CST 2026
 base.0=C\:\\Users\\ADMIN\\AndroidStudioProjects\\SnowTrail\\wear\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=C\:\\Users\\ADMIN\\AndroidStudioProjects\\SnowTrail\\wear\\build\\intermediates\\dex\\debug\\mergeLibDexDebug\\7\\classes.dex
 base.2=C\:\\Users\\ADMIN\\AndroidStudioProjects\\SnowTrail\\wear\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
