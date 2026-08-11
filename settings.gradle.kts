@@ -26,4 +26,5 @@ rootProject.name = "SnowTrail"
 include(":app")
 include(":wear")
 include(":shared")
+include(":tv")
  
