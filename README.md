@@ -68,3 +68,13 @@ Desarrollar una aplicación móvil integrada con un dispositivo wearable (Wear O
 4. **Simular Movimiento:**
    - Ve a la pestaña **GPS** en el celular.
    - Desplaza el control de la ubicación para ver cómo cambian y se sincronizan las neverías en tiempo real en la pantalla del reloj.
+
+---
+
+## 📚 Documentación Técnica Detallada por Módulos
+
+Para consultar el código fuente documentado, diagramas de arquitectura y desgloses archivo por archivo de cada plataforma, visita la documentación técnica especializada:
+
+* [📱 **Módulo Móvil (Smartphone) - `:app`**](app/README.md): Arquitectura Jetpack Compose, roles Cliente/Admin, persistencia SQLite v5, mapa Positionstack + Leaflet y transmisor de sockets TCP.
+* [⌚ **Módulo Smartwatch (Wear OS) - `:wear`**](wear/README.md): Compose for Wear OS, notificaciones con marquesina continua (`basicMarquee`), cupones de descuento interactivos y soporte de botones físicos.
+* [📺 **Módulo Android TV - `:tv`**](tv/README.md): Servidor multihilo de sockets TCP (puerto 9090), layout dividido, cola de pedidos nuevos/pendientes con alertas y carrusel de 50 promociones únicas.
