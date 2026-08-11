@@ -15,13 +15,91 @@ graph TD
 
 ---
 
-## 📂 Desglose Técnico Archivo por Archivo
+## 📦 Configuración de Compilación y Dependencias (`libs.versions.toml` & `build.gradle.kts`)
+
+### 1. Catálogo Centralizado de Versiones (`gradle/libs.versions.toml`)
+El proyecto utiliza el sistema moderno de **Version Catalogs (TOML)** de Gradle para centralizar versiones y librerías entre los módulos `:app`, `:wear` y `:tv`.
+
+#### 💻 Fragmento de `libs.versions.toml`:
+```toml
+[versions]
+agp = "9.2.1"
+playServicesWearable = "20.0.1"
+kotlin = "2.2.10"
+composeBom = "2024.09.00"
+composeMaterial3 = "1.5.6"
+activityCompose = "1.13.0"
+coreSplashscreen = "1.2.0"
+
+[libraries]
+play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+ui = { group = "androidx.compose.ui", name = "ui" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+```
 
 ---
 
-### 1. `MainActivity.kt`
+### 2. Script de Construcción del Módulo (`app/build.gradle.kts`)
+Aplica los plugins referenciados desde el catálogo TOML e inyecta las dependencias necesarias para UI reactiva, mapas en WebView, persistencia y comunicación por sockets:
+
+#### 💻 Fragmento de `app/build.gradle.kts`:
+```kotlin
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "mx.utng.snowtrail"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "mx.utng.snowtrail"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation(project(":shared"))
+    implementation(libs.play.services.wearable)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.activity.compose)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.material3:material3:1.2.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation(libs.core.splashscreen)
+}
+```
+
+---
+
+## 📂 Desglose Técnico Archivo por Archivo (`main` y componentes)
+
+---
+
+### 1. `MainActivity.kt` (`main` - Punto de Entrada)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/MainActivity.kt`
-* **Propósito:** Actividad principal (`ComponentActivity`) que gestiona el ciclo de vida, la máquina de estados de Compose, la navegación entre pantallas y roles (Login, Cliente, Administrador), el consumo de la API de geolocalización y la transmisión por sockets TCP.
+* **Propósito:** Actividad principal (`ComponentActivity`) que orquesta el ciclo de vida, la máquina de estados de Compose, la navegación entre pantallas y roles (Login, Cliente, Administrador), el consumo asíncrono de la API de geocodificación y la transmisión por sockets TCP.
 
 #### 🔧 Componentes y Funcionalidades Clave:
 * **Autenticación y Roles:** Manejo de sesiones para `Admin@gmail.com` y `Cliente@gmail.com`.
@@ -129,9 +207,9 @@ data class MockOrder(
 
 ---
 
-### 5. `AndroidManifest.xml`
+### 5. `AndroidManifest.xml` (`main` Manifiesto)
 * **Ubicación:** `app/src/main/AndroidManifest.xml`
-* **Propósito:** Declara los permisos requeridos para la conectividad de red, consumo de la API de Positionstack y servicios en segundo plano:
+* **Propósito:** Declara los componentes principales, permisos y actividades:
   * `android.permission.INTERNET`
   * `android.permission.ACCESS_NETWORK_STATE`
   * `android.permission.ACCESS_FINE_LOCATION`

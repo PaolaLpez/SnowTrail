@@ -19,11 +19,83 @@ graph TD
 
 ---
 
-## 📂 Desglose Técnico Archivo por Archivo
+## 📦 Configuración de Compilación y Dependencias (`libs.versions.toml` & `build.gradle.kts`)
+
+### 1. Librerías y Plugins en `gradle/libs.versions.toml`
+El catálogo gestiona los plugins y librerías de Compose compartidas con la TV:
+
+#### 💻 Fragmento de `libs.versions.toml`:
+```toml
+[versions]
+agp = "9.2.1"
+kotlin = "2.2.10"
+composeBom = "2024.09.00"
+activityCompose = "1.13.0"
+
+[libraries]
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+ui = { group = "androidx.compose.ui", name = "ui" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+```
 
 ---
 
-### 1. `MainActivity.kt` (Android TV)
+### 2. Script de Construcción del Módulo (`tv/build.gradle.kts`)
+Configura la aplicación para pantallas grandes sin dependencias innecesarias de telefonía:
+
+#### 💻 Fragmento de `tv/build.gradle.kts`:
+```kotlin
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "mx.utng.snowtrail.tv"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "mx.utng.snowtrail.tv"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation(project(":shared"))
+    implementation(platform(libs.compose.bom))
+    implementation(libs.activity.compose)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.material3:material3:1.2.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+}
+```
+
+---
+
+## 📂 Desglose Técnico Archivo por Archivo (`main` y componentes)
+
+---
+
+### 1. `MainActivity.kt` (`main` - Punto de Entrada)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt`
 * **Propósito:** Actividad principal de TV que inicializa el `ServerSocket(9090)` en corrutinas de Kotlin (`Dispatchers.IO`), renderiza el reloj digital en vivo, proyecta el carrusel de promociones y muestra alertas sonoras y visuales inmediatas cuando entra un nuevo pedido.
 
@@ -73,7 +145,7 @@ private fun startTcpServer() {
 
 ---
 
-### 2. `DatabaseHelper.kt` (Android TV)
+### 2. `DatabaseHelper.kt`
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/database/DatabaseHelper.kt`
 * **Propósito:** Gestor de persistencia SQLite local para la TV en la versión **`7`**. Inicializa y mantiene el catálogo pre-cargado de **50 promociones únicas (5 para cada una de las 10 heladerías de Dolores Hidalgo)** y el historial de pedidos de la TV.
 
@@ -86,7 +158,7 @@ private fun startTcpServer() {
 
 ---
 
-### 3. `SnowTrailRepository.kt` (Android TV)
+### 3. `SnowTrailRepository.kt`
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/database/SnowTrailRepository.kt`
 * **Propósito:** Repositorio que gestiona la consulta de promociones filtradas por establecimiento (`getPromotionsByShop`) y la inserción atómica de pedidos entrantes (`saveOrder`).
 
@@ -110,7 +182,7 @@ fun saveOrder(order: TvOrder) {
 
 ---
 
-### 4. `AndroidManifest.xml` (Android TV)
+### 4. `AndroidManifest.xml` (`main` Manifiesto)
 * **Ubicación:** `tv/src/main/AndroidManifest.xml`
 * **Propósito:** Configura las directivas de Android Leanback para TV:
   * `<uses-feature android:name="android.software.leanback" android:required="true" />`: Exclusividad de hardware TV.

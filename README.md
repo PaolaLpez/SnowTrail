@@ -18,11 +18,15 @@ Desarrollar una aplicación móvil integrada con un dispositivo wearable (Wear O
 ---
 
 ## ⚙️ Tecnologías Utilizadas
-* **Lenguaje:** Kotlin
-* **Diseño de Interfaz:** Jetpack Compose (Móvil) & Compose for Wear OS (Reloj)
-* **Persistencia Local:** `SQLiteOpenHelper` (Base de datos nativa SQL para evitar conflictos de anotadores en compilación)
-* **Capa de Comunicación:** Google Play Services Wearable (`DataClient` y pings de latido rápido)
-* **Animaciones y Efectos:** `Modifier.basicMarquee()` de Compose (efecto texto corrido en el reloj), transiciones y badges dinámicos.
+* **Lenguaje:** Kotlin (v2.2.10) & Java 17
+* **Gestor de Dependencias y Catálogo:** Gradle Version Catalog (`gradle/libs.versions.toml`) con scripts en Kotlin DSL (`build.gradle.kts`).
+* **Diseño de Interfaz:** Jetpack Compose (Móvil & Android TV) & Compose for Wear OS (Smartwatch).
+* **Persistencia Local:** `SQLiteOpenHelper` nativo (Esquemas versionados: v5 en móvil, v7 en Android TV).
+* **Capa de Comunicación y Red:** 
+  * Servidor multihilo de Sockets TCP en puerto `9090` (Comunicación Móvil ➜ TV).
+  * Google Play Services Wearable (`DataClient`) y difusiones locales (Comunicación Móvil ➜ Wear OS).
+* **Geolocalización y Mapas:** API REST de Positionstack & Leaflet.js inyectado en `WebView`.
+* **Animaciones y Efectos:** `Modifier.basicMarquee()` de Compose (efecto marquesina en el reloj), transiciones suaves y badges dinámicos.
 
 ---
 
