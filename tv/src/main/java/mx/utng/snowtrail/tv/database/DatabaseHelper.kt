@@ -131,11 +131,19 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('pl4', 'Paleta de Mango, Fresa y Limón', '2026-08-01', '2026-08-30', 'Tres deliciosos colores y sabores naturales', '🍭', 'nev_flor')")
             db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('pl5', 'Helado Vainilla Papantla Premium', '2026-08-01', '2026-08-20', 'Con vaina de vainilla mexicana auténtica', '🌼', 'nev_flor')")
 
+            // 11. HELARTE (nev_helarte) - Tradición y Calidad en Cada Cucharada
+            db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('ph1', 'Copa Helarte Suprema (3 Bolas + Fudge)', '2026-08-01', '2026-08-31', 'Tradición y calidad en cada cucharada', '🍨', 'nev_helarte')")
+            db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('ph2', 'Cono Artesanal 2x1 en Especiales', '2026-08-01', '2026-08-30', 'Vainilla, Fresa y Menta con chispitas', '🍦', 'nev_helarte')")
+            db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('ph3', 'Sundae Especial de Chocolate', '2026-08-05', '2026-08-28', 'Por solo $45 MXN con salsa caliente', '🍫', 'nev_helarte')")
+            db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('ph4', 'Paleta Rellena de Crema Helarte', '2026-08-01', '2026-08-25', 'Lleva 3 paletas por solo $50 pesos', '🍭', 'nev_helarte')")
+            db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('ph5', 'Litro Helarte Familiar 20% OFF', '2026-08-10', '2026-08-31', 'Sabores combinados a elegir para llevar', '🍧', 'nev_helarte')")
+
             // Seed some demo orders associated with neveria IDs
             db.execSQL("INSERT INTO $TABLE_ORDERS VALUES ('o1', 'Gerardo Manzano', 'Para recoger: 15:45 hs', '15 min', '\$120.00 MXN', '1x Vaso Chocolate\n1x Cono Vainilla', 'PENDIENTE', 'nev_los_abuelos')")
             db.execSQL("INSERT INTO $TABLE_ORDERS VALUES ('o2', 'Paola López', 'Para recoger: 16:00 hs', '10 min', '\$85.00 MXN', '2x Paletas de Limón\n1x Helado Fresa', 'PENDIENTE', 'nev_la_mich')")
             db.execSQL("INSERT INTO $TABLE_ORDERS VALUES ('o3', 'Jennifer Medina', 'Para recoger: 16:30 hs', '20 min', '\$199.00 MXN', '1x Paquete Familiar 10 Paletas', 'PENDIENTE', 'nev_zero')")
             db.execSQL("INSERT INTO $TABLE_ORDERS VALUES ('o4', 'Rodrigo Silva', 'Para recoger: 17:00 hs', '12 min', '\$59.00 MXN', '1x Brownie Split Deluxe', 'PENDIENTE', 'nev_los_abuelos')")
+            db.execSQL("INSERT INTO $TABLE_ORDERS VALUES ('o5', 'Ana Paula', 'Para recoger: 17:15 hs', '10 min', '\$113.00 MXN', '1x Copa Helarte Suprema\n1x Cono Tradición', 'PENDIENTE', 'nev_helarte')")
         } catch (e: Exception) {
             e.printStackTrace()
         }

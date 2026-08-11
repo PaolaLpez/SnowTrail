@@ -370,5 +370,35 @@ class SnowTrailRepository(context: Context) {
 }
 ```
 
+---
+
+## 🔌 5. Configuración y Redirección del Puerto 9090 (ADB)
+
+Para que los pedidos y promociones viajen en tiempo real desde el dispositivo/emulador móvil hacia la pantalla de Android TV a través del **Servidor Socket TCP en el puerto 9090**, se deben ejecutar los siguientes dos comandos de redirección con ADB:
+
+### 💻 Comandos en PowerShell:
+```powershell
+# 1. Redirigir el puerto 9090 del servidor/host hacia el emulador de Android TV
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s emulator-5556 forward tcp:9090 tcp:9090
+
+# 2. Habilitar el puente inverso en el emulador del Celular
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s emulator-5554 reverse tcp:9090 tcp:9090
+```
+
+### 🖥️ Comandos en Símbolo del Sistema (CMD):
+```cmd
+:: 1. Redirigir el puerto hacia Android TV
+"%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe" -s emulator-5556 forward tcp:9090 tcp:9090
+
+:: 2. Habilitar el puente inverso hacia el Celular
+"%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe" -s emulator-5554 reverse tcp:9090 tcp:9090
+```
+
+> [!TIP]
+> Para verificar los identificadores de tus emuladores activos (ej: `emulator-5554` para teléfono y `emulator-5556` para TV), ejecuta:
+> `& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices`
+
+---
+
 > [!NOTE]
 > Para consultar cómo el teléfono móvil envía los pedidos por sockets hacia la TV, consultar el [README del Módulo Móvil](../app/README.md).
