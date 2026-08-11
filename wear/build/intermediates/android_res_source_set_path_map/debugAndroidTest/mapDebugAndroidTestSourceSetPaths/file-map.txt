@@ -1,0 +1,5 @@
+mx.utng.snowtrail.test.wear-updated_navigation_xml-0 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\generated\updated_navigation_xml\debugAndroidTest
+mx.utng.snowtrail.test.wear-packageDebugAndroidTestResources-1 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\intermediates\incremental\debugAndroidTest\packageDebugAndroidTestResources\merged.dir
+mx.utng.snowtrail.test.wear-packageDebugAndroidTestResources-2 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\intermediates\incremental\debugAndroidTest\packageDebugAndroidTestResources\stripped.dir
+mx.utng.snowtrail.test.wear-debugAndroidTest-3 C:\Users\ADMIN\AndroidStudioProjects\SnowTrail\wear\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources
+gradleHome-0 C:\Users\ADMIN\.gradle
