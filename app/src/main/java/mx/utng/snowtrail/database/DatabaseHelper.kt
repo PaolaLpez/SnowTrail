@@ -62,6 +62,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val NOTIF_TYPE = "tipo"
         const val NOTIF_READ = "leida"
         const val NOTIF_TIMESTAMP = "fecha_envio"
+
+        const val TABLE_USER_FAVORITES = "user_favorites"
+        const val UF_USER_EMAIL = "user_email"
+        const val UF_SHOP_ID = "shop_id"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -130,12 +134,21 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             )
         """.trimIndent()
 
+        val createUserFavoritesTable = """
+            CREATE TABLE IF NOT EXISTS $TABLE_USER_FAVORITES (
+                $UF_USER_EMAIL TEXT,
+                $UF_SHOP_ID TEXT,
+                PRIMARY KEY ($UF_USER_EMAIL, $UF_SHOP_ID)
+            )
+        """.trimIndent()
+
         db.execSQL(createShopsTable)
         db.execSQL(createOrdersTable)
         db.execSQL(createOrderProductsTable)
         db.execSQL(createNotificationsTable)
         db.execSQL(createUsersTable)
         db.execSQL(createPromotionsTable)
+        db.execSQL(createUserFavoritesTable)
 
         // Seed Admin user
         val seedAdmin = "INSERT INTO $TABLE_USERS ($USER_EMAIL, $USER_PASSWORD, $USER_ROLE) VALUES ('Admin@gmail.com', 'admin123', 'ADMIN')"
@@ -149,6 +162,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.execSQL("DROP TABLE IF EXISTS $TABLE_SHOPS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_NOTIFICATIONS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_PROMOTIONS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_USER_FAVORITES")
         onCreate(db)
     }
 }

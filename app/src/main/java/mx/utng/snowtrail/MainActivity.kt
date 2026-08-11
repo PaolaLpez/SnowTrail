@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
             val reloadFromDb = {
                 try {
                     activeOrder = repository.getActiveOrder()
-                    shopsList = repository.getShops()
+                    shopsList = repository.getShopsForUser(loggedInUserEmail)
                     notificationsList = repository.getNotifications()
                     promotionsList = repository.getPromotions()
                 } catch (e: Exception) {
@@ -589,7 +589,7 @@ class MainActivity : ComponentActivity() {
                                                 0 -> ExploreShopsScreen(
                                                     shops = shopsList,
                                                     onToggleFavorite = { shopId ->
-                                                        repository.toggleFavoriteShop(shopId)
+                                                        repository.toggleFavoriteShopForUser(loggedInUserEmail ?: "Admin@gmail.com", shopId)
                                                         reloadFromDb()
                                                         triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
                                                     },
@@ -665,7 +665,7 @@ class MainActivity : ComponentActivity() {
                                                 0 -> ExploreShopsScreen(
                                                     shops = shopsList,
                                                     onToggleFavorite = { shopId ->
-                                                        repository.toggleFavoriteShop(shopId)
+                                                        repository.toggleFavoriteShopForUser(loggedInUserEmail ?: "Cliente@gmail.com", shopId)
                                                         reloadFromDb()
                                                         triggerSync("mx.utng.snowtrail.ACTION_SYNC_SHOPS", null, null)
                                                     },
@@ -781,10 +781,16 @@ fun ExploreShopsScreen(
     onShopClicked: (String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var filterFavoritesOnly by remember { mutableStateOf(false) }
     
     // Only display shops within the 3 km (3000 meters) range
-    val filteredShops = shops.filter { 
-        it.distancia <= 3000.0 && it.nombre.contains(searchQuery, ignoreCase = true)
+    val allInRange = shops.filter { it.distancia <= 3000.0 }
+    val favsInRange = allInRange.filter { it.esFavorita }
+
+    val filteredShops = allInRange.filter { shop ->
+        val matchesSearch = shop.nombre.contains(searchQuery, ignoreCase = true)
+        val matchesFav = if (filterFavoritesOnly) shop.esFavorita else true
+        matchesSearch && matchesFav
     }
 
     Column(
@@ -813,102 +819,201 @@ fun ExploreShopsScreen(
                 .border(BorderStroke(1.5.dp, MobileThemeColors.IceCreamPink), RoundedCornerShape(16.dp))
         )
 
-        Text(
-            text = "Neverías Cerca de Ti (${filteredShops.size} encontradas)",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = MobileThemeColors.CocoaLightText
-        )
-
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
+        // Filter chips: Todas vs Favoritas
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(filteredShops) { shop ->
-                val cardBorderColor = if (shop.esFavorita) MobileThemeColors.GoldBorder else MobileThemeColors.IceCreamPink
-                val cardBg = if (shop.esFavorita) MobileThemeColors.GoldPastel.copy(alpha = 0.3f) else Color.White
+            FilterChip(
+                selected = !filterFavoritesOnly,
+                onClick = { filterFavoritesOnly = false },
+                label = { Text("🏪 Todas (${allInRange.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MobileThemeColors.IceCreamPink,
+                    selectedLabelColor = MobileThemeColors.PinkText
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
 
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.5.dp, cardBorderColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onShopClicked(shop.id) }
+            FilterChip(
+                selected = filterFavoritesOnly,
+                onClick = { filterFavoritesOnly = true },
+                label = { Text("⭐ Favoritas (${favsInRange.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MobileThemeColors.GoldPastel,
+                    selectedLabelColor = MobileThemeColors.GoldText
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+        }
+
+        // Helpful banner if client has 0 favorites yet and is on "Todas"
+        if (!filterFavoritesOnly && favsInRange.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MobileThemeColors.GoldPastel.copy(alpha = 0.45f)),
+                border = BorderStroke(1.dp, MobileThemeColors.GoldBorder),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
+                    Text("💡", fontSize = 20.sp)
+                    Column {
+                        Text(
+                            text = "¡Elige tus heladerías favoritas!",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MobileThemeColors.GoldText
+                        )
+                        Text(
+                            text = "Toca la estrella ⭐ en cualquiera de las neverías para guardarla en tu lista personalizada.",
+                            fontSize = 11.sp,
+                            color = MobileThemeColors.CocoaDarkText
+                        )
+                    }
+                }
+            }
+        }
+
+        // Empty state when filtering by Favorites and user has none
+        if (filterFavoritesOnly && filteredShops.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.5.dp, MobileThemeColors.IceCreamPink),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("🍦 ⭐", fontSize = 34.sp)
+                    Text(
+                        text = "¡Elige tus heladerías favoritas!",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MobileThemeColors.PinkText,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "Aún no has agregado ninguna heladería a tus favoritos.\n\nExplora la lista completa y toca la estrella ⭐ en tus heladerías preferidas para tenerlas siempre a la mano.",
+                        fontSize = 12.sp,
+                        color = MobileThemeColors.CocoaLightText,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Button(
+                        onClick = { filterFavoritesOnly = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PinkText),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Ver todas las neverías", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+        } else {
+            Text(
+                text = if (filterFavoritesOnly) "Tus Neverías Favoritas (${filteredShops.size})" else "Neverías Cerca de Ti (${filteredShops.size} encontradas)",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MobileThemeColors.CocoaLightText
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(filteredShops) { shop ->
+                    val cardBorderColor = if (shop.esFavorita) MobileThemeColors.GoldBorder else MobileThemeColors.IceCreamPink
+                    val cardBg = if (shop.esFavorita) MobileThemeColors.GoldPastel.copy(alpha = 0.3f) else Color.White
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = cardBg),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.5.dp, cardBorderColor),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .clickable { onShopClicked(shop.id) }
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = shop.nombre,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MobileThemeColors.CocoaDarkText
-                                )
-                                if (shop.tienePromocion) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .background(MobileThemeColors.GoldPastel, RoundedCornerShape(6.dp))
-                                            .border(BorderStroke(1.dp, MobileThemeColors.GoldBorder), RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "PROMO",
-                                            color = MobileThemeColors.GoldText,
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = shop.nombre,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MobileThemeColors.CocoaDarkText
+                                    )
+                                    if (shop.tienePromocion) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .background(MobileThemeColors.GoldPastel, RoundedCornerShape(6.dp))
+                                                .border(BorderStroke(1.dp, MobileThemeColors.GoldBorder), RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "PROMO",
+                                                color = MobileThemeColors.GoldText,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Place, contentDescription = "Ubicación", tint = MobileThemeColors.PinkText, modifier = Modifier.size(12.dp))
+                                    Text(
+                                        text = "Distancia: ${shop.distancia.toInt()} metros",
+                                        fontSize = 12.sp,
+                                        color = MobileThemeColors.CocoaLightText
+                                    )
+                                }
+                                
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.AccessTime, contentDescription = "Horario", tint = MobileThemeColors.CocoaMuted, modifier = Modifier.size(12.dp))
+                                    Text(
+                                        text = "Abierto de 9:00 AM a 9:00 PM",
+                                        fontSize = 11.sp,
+                                        color = MobileThemeColors.CocoaMuted
+                                    )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            IconButton(
+                                onClick = { onToggleFavorite(shop.id) },
+                                modifier = Modifier
+                                    .background(if (shop.esFavorita) MobileThemeColors.GoldPastel else Color.Transparent, RoundedCornerShape(50))
                             ) {
-                                Icon(Icons.Default.Place, contentDescription = "Ubicación", tint = MobileThemeColors.PinkText, modifier = Modifier.size(12.dp))
-                                Text(
-                                    text = "Distancia: ${shop.distancia.toInt()} metros",
-                                    fontSize = 12.sp,
-                                    color = MobileThemeColors.CocoaLightText
+                                Icon(
+                                    imageVector = if (shop.esFavorita) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "Favorito",
+                                    tint = if (shop.esFavorita) MobileThemeColors.GoldText else MobileThemeColors.CocoaMuted,
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
-                            
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(top = 2.dp)
-                            ) {
-                                Icon(Icons.Default.AccessTime, contentDescription = "Horario", tint = MobileThemeColors.CocoaMuted, modifier = Modifier.size(12.dp))
-                                Text(
-                                    text = "Abierto de 9:00 AM a 9:00 PM",
-                                    fontSize = 11.sp,
-                                    color = MobileThemeColors.CocoaMuted
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = { onToggleFavorite(shop.id) },
-                            modifier = Modifier
-                                .background(if (shop.esFavorita) MobileThemeColors.GoldPastel else Color.Transparent, RoundedCornerShape(50))
-                        ) {
-                            Icon(
-                                imageVector = if (shop.esFavorita) Icons.Default.Star else Icons.Default.StarBorder,
-                                contentDescription = "Favorito",
-                                tint = if (shop.esFavorita) MobileThemeColors.GoldText else MobileThemeColors.CocoaMuted,
-                                modifier = Modifier.size(26.dp)
-                            )
                         }
                     }
                 }
@@ -1944,6 +2049,7 @@ fun LoginRegisterScreen(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
+    var successMessage by remember { mutableStateOf("") }
     
     Box(
         modifier = Modifier
@@ -1998,7 +2104,11 @@ fun LoginRegisterScreen(
                 // Fields
                 OutlinedTextField(
                     value = email,
-                    onValueChange = { email = it; errorMessage = "" },
+                    onValueChange = { 
+                        email = it
+                        errorMessage = ""
+                        successMessage = ""
+                    },
                     label = { Text("Correo Electrónico") },
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email", tint = MobileThemeColors.PinkText) },
                     singleLine = true,
@@ -2015,7 +2125,11 @@ fun LoginRegisterScreen(
                 var passwordVisible by remember { mutableStateOf(false) }
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it; errorMessage = "" },
+                    onValueChange = { 
+                        password = it
+                        errorMessage = ""
+                        successMessage = ""
+                    },
                     label = { Text("Contraseña") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password", tint = MobileThemeColors.PinkText) },
                     trailingIcon = {
@@ -2042,7 +2156,11 @@ fun LoginRegisterScreen(
                 if (isRegisterMode) {
                     OutlinedTextField(
                         value = confirmPassword,
-                        onValueChange = { confirmPassword = it; errorMessage = "" },
+                        onValueChange = { 
+                            confirmPassword = it
+                            errorMessage = ""
+                            successMessage = ""
+                        },
                         label = { Text("Confirmar Contraseña") },
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Confirm Password", tint = MobileThemeColors.PinkText) },
                         singleLine = true,
@@ -2058,14 +2176,52 @@ fun LoginRegisterScreen(
                     )
                 }
                 
+                if (successMessage.isNotEmpty()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                        border = BorderStroke(1.5.dp, Color(0xFF4CAF50)),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("✨", fontSize = 18.sp)
+                            Text(
+                                text = successMessage,
+                                color = Color(0xFF2E7D32),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Start
+                            )
+                        }
+                    }
+                }
+                
                 if (errorMessage.isNotEmpty()) {
-                    Text(
-                        text = errorMessage,
-                        color = Color.Red,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                        border = BorderStroke(1.5.dp, Color(0xFFEF5350)),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⚠️", fontSize = 16.sp)
+                            Text(
+                                text = errorMessage,
+                                color = Color(0xFFC62828),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Start
+                            )
+                        }
+                    }
                 }
                 
                 // Submit Button
@@ -2073,33 +2229,39 @@ fun LoginRegisterScreen(
                     onClick = {
                         if (email.isBlank() || password.isBlank()) {
                             errorMessage = "Por favor completa todos los campos"
+                            successMessage = ""
                             return@Button
                         }
                         
                         if (isRegisterMode) {
                             if (password != confirmPassword) {
                                 errorMessage = "Las contraseñas no coinciden"
+                                successMessage = ""
                                 return@Button
                             }
                             if (password.length < 6) {
                                 errorMessage = "La contraseña debe tener al menos 6 caracteres"
+                                successMessage = ""
                                 return@Button
                             }
                             
                             // Check if they try to register Admin@gmail.com
                             if (email.trim().equals("Admin@gmail.com", ignoreCase = true)) {
                                 errorMessage = "No puedes registrarte con esta cuenta"
+                                successMessage = ""
                                 return@Button
                             }
 
                             val success = repository.registerUser(email.trim(), password, "CLIENTE")
                             if (success) {
                                 isRegisterMode = false
-                                errorMessage = "¡Registro exitoso! Inicia sesión"
+                                successMessage = "¡Usuario registrado correctamente! Inicia sesión para continuar"
+                                errorMessage = ""
                                 password = ""
                                 confirmPassword = ""
                             } else {
                                 errorMessage = "El correo ya está registrado"
+                                successMessage = ""
                             }
                         } else {
                             val role = repository.authenticateUser(email.trim(), password)
@@ -2107,6 +2269,7 @@ fun LoginRegisterScreen(
                                 onLoginSuccess(email.trim(), role)
                             } else {
                                 errorMessage = "Credenciales incorrectas"
+                                successMessage = ""
                             }
                         }
                     },
@@ -2134,6 +2297,7 @@ fun LoginRegisterScreen(
                         .clickable {
                             isRegisterMode = !isRegisterMode
                             errorMessage = ""
+                            successMessage = ""
                             email = ""
                             password = ""
                             confirmPassword = ""
@@ -2319,7 +2483,8 @@ fun AdminLayout(
                         )
                         2 -> AdminOrdersHistoryTab(
                             repository = repository,
-                            reloadFromDb = reloadFromDb
+                            reloadFromDb = reloadFromDb,
+                            triggerSync = triggerSync
                         )
                         3 -> AdminProfileTab(
                             activeOrder = activeOrder,
@@ -3710,7 +3875,8 @@ fun PositionstackMapScreen(shops: List<MockShop> = emptyList()) {
 @Composable
 fun AdminOrdersHistoryTab(
     repository: SnowTrailRepository,
-    reloadFromDb: () -> Unit
+    reloadFromDb: () -> Unit,
+    triggerSync: (String, String?, String?) -> Unit = { _, _, _ -> }
 ) {
     var allOrders by remember { mutableStateOf(emptyList<MockOrder>()) }
     
@@ -3735,19 +3901,20 @@ fun AdminOrdersHistoryTab(
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "📋 Historial de Pedidos por Usuario", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                    Text(text = "📋 Gestión de Pedidos por Usuario", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
                     
                     TextButton(
                         onClick = {
                             repository.clearOrdersHistory()
                             refreshOrders()
                             reloadFromDb()
+                            triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
                         }
                     ) {
                         Text("Borrar Todo", color = Color.Red, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -3765,51 +3932,68 @@ fun AdminOrdersHistoryTab(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFFEF9A9A),
-                            modifier = Modifier.padding(top = 6.dp)
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                         )
                         
                         ordersGroup.forEach { o ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-                                border = BorderStroke(0.5.dp, Color.LightGray),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA)),
+                                border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
                             ) {
-                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(text = "Pedido: #${o.id}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
+                                        Text(text = "Pedido: #${o.id}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
                                         
                                         Box(
                                             modifier = Modifier
                                                 .background(
                                                     when (o.estado) {
-                                                        "NUEVO" -> Color(0xFFE8F5E9)
-                                                        "PENDIENTE" -> Color(0xFFFFFDE7)
+                                                        "NUEVO" -> Color(0xFFFFF9C4)
+                                                        "ACEPTADO" -> Color(0xFFE8F5E9)
+                                                        "POSPUESTO" -> Color(0xFFFFE0B2)
+                                                        "ENTREGADO" -> Color(0xFFE3F2FD)
                                                         "RECHAZADO" -> Color(0xFFFFEBEE)
-                                                        else -> Color(0xFFE3F2FD)
+                                                        else -> Color(0xFFF5F5F5)
                                                     },
                                                     RoundedCornerShape(8.dp)
                                                 )
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                .border(
+                                                    1.dp,
+                                                    when (o.estado) {
+                                                        "NUEVO" -> Color(0xFFF57F17)
+                                                        "ACEPTADO" -> Color(0xFF2E7D32)
+                                                        "POSPUESTO" -> Color(0xFFE65100)
+                                                        "ENTREGADO" -> Color(0xFF1565C0)
+                                                        "RECHAZADO" -> Color(0xFFC62828)
+                                                        else -> Color.Gray
+                                                    },
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
                                         ) {
                                             Text(
                                                 text = o.estado,
-                                                fontSize = 9.sp,
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = when (o.estado) {
-                                                    "NUEVO" -> Color(0xFF2E7D32)
-                                                    "PENDIENTE" -> Color(0xFFF57F17)
+                                                    "NUEVO" -> Color(0xFFF57F17)
+                                                    "ACEPTADO" -> Color(0xFF2E7D32)
+                                                    "POSPUESTO" -> Color(0xFFE65100)
+                                                    "ENTREGADO" -> Color(0xFF1565C0)
                                                     "RECHAZADO" -> Color(0xFFC62828)
-                                                    else -> Color(0xFF1565C0)
+                                                    else -> Color.DarkGray
                                                 }
                                             )
                                         }
                                     }
                                     
-                                    Text(text = "🏪 Nevería: ${o.neveriaNombre}", fontSize = 11.sp, color = Color.DarkGray)
+                                    Text(text = "🏪 Nevería: ${o.neveriaNombre}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF424242))
                                     
                                     val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
                                     val dateStr = sdf.format(java.util.Date(o.fechaHoraMillis))
@@ -3817,11 +4001,95 @@ fun AdminOrdersHistoryTab(
                                     
                                     val prodStr = o.productos.joinToString(", ") { "${it.cantidad}x ${it.nombre}" }
                                     Text(text = "🛍️ Items: $prodStr", fontSize = 11.sp, color = Color.DarkGray)
-                                    Text(text = "💵 Total: $${o.total}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB52D5E))
+                                    Text(text = "💵 Total: $${o.total}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB52D5E))
+                                    
+                                    Divider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                                    
+                                    Text(text = "Cambiar Estado del Pedido (Admin):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF757575))
+                                    
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Aceptar
+                                            Button(
+                                                onClick = {
+                                                    repository.updateOrderStatus(o.id, "ACEPTADO")
+                                                    refreshOrders()
+                                                    reloadFromDb()
+                                                    triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
+                                                },
+                                                modifier = Modifier.weight(1f).height(36.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE8F5E9)),
+                                                border = BorderStroke(1.dp, Color(0xFF4CAF50)),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("Aceptar", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                            }
+                                            
+                                            // Posponer
+                                            Button(
+                                                onClick = {
+                                                    repository.updateOrderStatus(o.id, "POSPUESTO")
+                                                    refreshOrders()
+                                                    reloadFromDb()
+                                                    triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
+                                                },
+                                                modifier = Modifier.weight(1f).height(36.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFE0B2)),
+                                                border = BorderStroke(1.dp, Color(0xFFFF9800)),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("Posponer", color = Color(0xFFE65100), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                            }
+                                        }
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Entregar
+                                            Button(
+                                                onClick = {
+                                                    repository.updateOrderStatus(o.id, "ENTREGADO")
+                                                    refreshOrders()
+                                                    reloadFromDb()
+                                                    triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
+                                                },
+                                                modifier = Modifier.weight(1f).height(36.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE3F2FD)),
+                                                border = BorderStroke(1.dp, Color(0xFF2196F3)),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("Entregar", color = Color(0xFF1565C0), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                            }
+                                            
+                                            // Rechazar
+                                            Button(
+                                                onClick = {
+                                                    repository.updateOrderStatus(o.id, "RECHAZADO")
+                                                    refreshOrders()
+                                                    reloadFromDb()
+                                                    triggerSync("mx.utng.snowtrail.ACTION_SYNC_ORDER", null, null)
+                                                },
+                                                modifier = Modifier.weight(1f).height(36.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFEBEE)),
+                                                border = BorderStroke(1.dp, Color(0xFFF44336)),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("Rechazar", color = Color(0xFFC62828), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                        Divider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                        Divider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 6.dp))
                     }
                 } else {
                     Box(

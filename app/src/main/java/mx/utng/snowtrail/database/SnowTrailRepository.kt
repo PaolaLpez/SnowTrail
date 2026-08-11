@@ -67,30 +67,68 @@ class SnowTrailRepository(context: Context) {
         db.update(DatabaseHelper.TABLE_SHOPS, values, "${DatabaseHelper.SHOP_ID} = ?", arrayOf(shopId))
     }
 
-    fun toggleFavoriteShop(shopId: String): Boolean {
-        val db = dbHelper.writableDatabase
-        var isFavorite = false
-        
-        db.beginTransaction()
+    fun getShopsForUser(userEmail: String?): List<MockShop> {
+        val allShops = getShops()
+        if (userEmail.isNullOrBlank()) return allShops.map { it.copy(esFavorita = false) }
+
+        val db = dbHelper.readableDatabase
         try {
+            db.execSQL("CREATE TABLE IF NOT EXISTS ${DatabaseHelper.TABLE_USER_FAVORITES} (${DatabaseHelper.UF_USER_EMAIL} TEXT, ${DatabaseHelper.UF_SHOP_ID} TEXT, PRIMARY KEY (${DatabaseHelper.UF_USER_EMAIL}, ${DatabaseHelper.UF_SHOP_ID}))")
             val cursor = db.rawQuery(
-                "SELECT ${DatabaseHelper.SHOP_FAVORITE} FROM ${DatabaseHelper.TABLE_SHOPS} WHERE ${DatabaseHelper.SHOP_ID} = ?",
-                arrayOf(shopId)
+                "SELECT ${DatabaseHelper.UF_SHOP_ID} FROM ${DatabaseHelper.TABLE_USER_FAVORITES} WHERE ${DatabaseHelper.UF_USER_EMAIL} = ?",
+                arrayOf(userEmail)
             )
+            val favSet = mutableSetOf<String>()
             if (cursor.moveToFirst()) {
-                val current = cursor.getInt(0)
-                isFavorite = current == 0
-                val values = ContentValues().apply {
-                    put(DatabaseHelper.SHOP_FAVORITE, if (isFavorite) 1 else 0)
-                }
-                db.update(DatabaseHelper.TABLE_SHOPS, values, "${DatabaseHelper.SHOP_ID} = ?", arrayOf(shopId))
+                do {
+                    favSet.add(cursor.getString(0))
+                } while (cursor.moveToNext())
             }
             cursor.close()
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
+            return allShops.map { shop ->
+                shop.copy(esFavorita = favSet.contains(shop.id))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return allShops.map { it.copy(esFavorita = false) }
         }
-        return isFavorite
+    }
+
+    fun toggleFavoriteShopForUser(userEmail: String, shopId: String): Boolean {
+        val db = dbHelper.writableDatabase
+        var isFav = false
+        try {
+            db.execSQL("CREATE TABLE IF NOT EXISTS ${DatabaseHelper.TABLE_USER_FAVORITES} (${DatabaseHelper.UF_USER_EMAIL} TEXT, ${DatabaseHelper.UF_SHOP_ID} TEXT, PRIMARY KEY (${DatabaseHelper.UF_USER_EMAIL}, ${DatabaseHelper.UF_SHOP_ID}))")
+            val cursor = db.rawQuery(
+                "SELECT 1 FROM ${DatabaseHelper.TABLE_USER_FAVORITES} WHERE ${DatabaseHelper.UF_USER_EMAIL} = ? AND ${DatabaseHelper.UF_SHOP_ID} = ?",
+                arrayOf(userEmail, shopId)
+            )
+            val exists = cursor.moveToFirst()
+            cursor.close()
+
+            if (exists) {
+                db.delete(
+                    DatabaseHelper.TABLE_USER_FAVORITES,
+                    "${DatabaseHelper.UF_USER_EMAIL} = ? AND ${DatabaseHelper.UF_SHOP_ID} = ?",
+                    arrayOf(userEmail, shopId)
+                )
+                isFav = false
+            } else {
+                val values = ContentValues().apply {
+                    put(DatabaseHelper.UF_USER_EMAIL, userEmail)
+                    put(DatabaseHelper.UF_SHOP_ID, shopId)
+                }
+                db.insertWithOnConflict(DatabaseHelper.TABLE_USER_FAVORITES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                isFav = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return isFav
+    }
+
+    fun toggleFavoriteShop(shopId: String): Boolean {
+        return toggleFavoriteShopForUser("Cliente@gmail.com", shopId)
     }
 
     // --- ORDERS OPERATIONS ---
@@ -271,8 +309,8 @@ class SnowTrailRepository(context: Context) {
         db.delete(DatabaseHelper.TABLE_SHOPS, null, null)
         
         val initialShops = listOf(
-            MockShop("nev_los_abuelos", "Los Abuelos", 80.0, true, true, "Lun-Vie 9-23h, Sáb-Dom 10-24h", "55 1234 5678, correo@neveria.com", "Avd. Abricación De Aguaa, 154"),
-            MockShop("nev_la_mich", "La Michoacana", 350.0, true, false, "Lun-Dom 10:00 - 22:00", "418 987 6543, michoacana@gmail.com", "Calle Hidalgo #45, Centro"),
+            MockShop("nev_los_abuelos", "Los Abuelos", 80.0, false, true, "Lun-Vie 9-23h, Sáb-Dom 10-24h", "55 1234 5678, correo@neveria.com", "Avd. Abricación De Aguaa, 154"),
+            MockShop("nev_la_mich", "La Michoacana", 350.0, false, false, "Lun-Dom 10:00 - 22:00", "418 987 6543, michoacana@gmail.com", "Calle Hidalgo #45, Centro"),
             MockShop("nev_zero", "Helados Bajo Cero", 1200.0, false, true, "Lun-Sáb 11:00 - 21:00", "418 111 2222, bajocero@gmail.com", "Av. Principal #320"),
             MockShop("nev_artis", "Artesanales del Valle", 2900.0, false, false, "Lun-Dom 12:00 - 20:00", "418 333 4444, info@valle.com", "Paseo de la Loma #78"),
             MockShop("nev_far", "Heladería Lejana", 4500.0, false, false, "Mar-Dom 11:00 - 19:00", "418 555 6666, far@helado.com", "Camino Real Km 5"),
