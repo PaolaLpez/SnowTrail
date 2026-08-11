@@ -49,18 +49,16 @@ Desarrollar una aplicación móvil integrada con un dispositivo wearable (Wear O
 
 ## 📸 Capturas de Pantalla
 
-### 📱 1. Aplicación Móvil - Rol Cliente (`:app`)
+### 📱 1. Módulo Móvil (Smartphone) - `:app`
 
+#### 👤 Vistas del Cliente
 | Explorar Neverías | Favoritos Personalizados | Detalle & Carrito de Helados |
 | :---: | :---: | :---: |
 | ![Explorar Neverías](Capturas/Pantalla_principal_app.png) | ![Favoritos](Capturas/Pantalla_favoritos_app.png) | ![Detalle y Carrito](Capturas/Pantalla_productos_app.png) |
 | **Seguimiento de Pedido** | **Mapa Interactivo (Positionstack)** | **Simulador GPS de Proximidad** |
 | ![Seguimiento Pedido](Capturas/Pantalla_pedido_app.png) | ![Mapa Cliente](Capturas/Pantalla_Mapa_app.png) | ![GPS Celular](Capturas/celular_gps.png) |
 
----
-
-### 🛠️ 2. Aplicación Móvil - Rol Administrador (`:app`)
-
+#### 🛠️ Vistas del Administrador
 | Control de Neverías | Control de Promociones | Gestión de Estados de Pedidos |
 | :---: | :---: | :---: |
 | ![Control Neverías](Capturas/Pantalla_neverías_admin_app.png) | ![Control Promociones](Capturas/Pantalla_promociones_admin_app.png) | ![Historial Pedidos](Capturas/Pantalla_historialPedidos_admin_app.png) |
@@ -71,19 +69,21 @@ Desarrollar una aplicación móvil integrada con un dispositivo wearable (Wear O
 
 ---
 
-### 📺 3. Módulo Android TV (`:tv`)
+### ⌚ 2. Módulo Smartwatch (Wear OS) - `:wear`
+
+| Neverías Cercanas en Reloj | Bandeja de Alertas (1) | Bandeja de Alertas (2) |
+| :---: | :---: | :---: |
+| ![Neverías Reloj](Capturas/reloj_neverias.png) | ![Notificaciones Reloj 1](Capturas/reloj_notificaciones.png) | ![Notificaciones Reloj 2](Capturas/reloj_notificaciones1.png) |
+| **Cupón de Descuento Interactivo** | | |
+| ![Cupón Reloj](Capturas/reloj_detalle.png) | | |
+
+---
+
+### 📺 3. Módulo Android TV - `:tv`
 
 | Carrusel de 50 Promociones & Reloj en Vivo | Cola Dividida de Pedidos (Nuevos & en Preparación) |
 | :---: | :---: |
 | ![Pantalla Principal TV](Capturas/Pantalla_principal_tv.png) | ![Cola Pedidos TV](Capturas/Pantalla_pedidos_tv.png) |
-
----
-
-### ⌚ 4. Módulo Smartwatch Wear OS (`:wear`)
-
-| Neverías Cercanas en Reloj | Bandeja de Alertas (Marquesina) | Cupón de Descuento Interactivo |
-| :---: | :---: | :---: |
-| ![Neverías Reloj](Capturas/reloj_neverias.png) | ![Notificaciones Reloj](Capturas/reloj_notificaciones.png) | ![Cupón Reloj](Capturas/reloj_detalle.png) |
 
 ---
 
