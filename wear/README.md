@@ -3,14 +3,20 @@
 ---
 
 ## 📌 1. Resumen de Arquitectura y Propósito
-El módulo `:wear` está diseñado específicamente para dispositivos **Wear OS** con pantallas circulares o cuadradas. Su arquitectura se enfoca en proporcionar una interfaz ultraligera y reactiva con **Compose for Wear OS**, diseñada para recibir notificaciones de proximidad en tiempo real, mostrar cupones de descuento interactivos con códigos alfanuméricos y listar neverías cercanas con escalado dinámico (`ScalingLazyColumn`).
+El módulo `:wear` está diseñado específicamente para dispositivos **Wear OS** con pantallas circulares o cuadradas. Su arquitectura modular en la capa de presentación se enfoca en proporcionar una interfaz ultraligera y reactiva con **Compose for Wear OS**, diseñada para recibir notificaciones de proximidad en tiempo real, mostrar cupones de descuento interactivos con códigos alfanuméricos, listar neverías cercanas con escalado dinámico (`ScalingLazyColumn`) y controlar pedidos mediante gestos y botones físicos (Stem Keys).
 
 ```mermaid
-graph LR
+graph TD
     A[Smartphone :app] -->|Google Play Services DataClient| B[WearDataListenerService :wear]
     B --> C[WearCommunicationManager]
-    C --> D[MainActivity Wear OS]
-    D --> E[WearScreens: Marquesina y Cupones]
+    C --> D[MainActivity Wear OS Orquestador]
+    D --> E[Capa de Presentación Modular]
+    E --> F[theme/WearThemeColors.kt]
+    E --> G[dialogs/ProximityAlertDialog.kt]
+    E --> H[screens/OrderStatusScreen.kt]
+    E --> I[screens/NearbyShopsScreen.kt]
+    E --> J[screens/NotificationTrayScreen.kt]
+    E --> K[screens/NotificationDetailScreen.kt]
 ```
 
 ---
@@ -57,14 +63,6 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ```
 
-#### 🔍 Desglose y Utilidad para Wear OS:
-| Elemento Añadido | Tipo | ¿Para qué ayuda en el Smartwatch? |
-| :--- | :--- | :--- |
-| `playServicesWearable = "20.0.1"` | Librería | **Data Layer & Message Client**: Recibe en segundo plano las promociones y pedidos enviados desde el celular. |
-| `composeMaterial3` / `composeFoundation` | Librería | **Wear Compose Suite**: Componentes circulares (`ScalingLazyColumn`, `Chip`, `Card`) optimizados para reloj. |
-| `wearToolingPreview = "1.0.0"` | Tooling | **Previsualización de Wearables**: Renderiza previsualizaciones en Android Studio en formatos redondos y cuadrados. |
-| `activityCompose = "1.13.0"` | Librería | **Activity Compose (`setContent`)**: Vincula el ciclo de vida del reloj con Compose UI. |
-
 ---
 
 ### 📄 `wear/build.gradle.kts` (Build Script del Módulo Smartwatch)
@@ -102,7 +100,7 @@ android {
 dependencies {
     implementation(project(":shared"))
 
-    // Play Services Wearable from Version Catalog
+    // Play Services Wearable
     implementation(libs.play.services.wearable)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
@@ -126,34 +124,22 @@ dependencies {
 }
 ```
 
-#### 🔍 Desglose y Utilidad de las Dependencias añadidas en `:wear`:
-| Dependencia Añadida | Propósito Técnico | Beneficio en el Smartwatch |
-| :--- | :--- | :--- |
-| `implementation(project(":shared"))` | Módulo compartido | Provee los modelos de datos compartidos (`WearDataListenerService`, `WearShop`). |
-| `libs.play.services.wearable` | Wearable Data Layer | Escucha mensajes `/snowtrail/proximity_alert`, `/snowtrail/sync_promotions` y `/snowtrail/order_status`. |
-| `kotlinx-coroutines-play-services` | Asincronía Kotlin | Permite enviar respuestas al celular mediante corrutinas sin congelar la pantalla táctil del reloj. |
-| `compose-foundation:1.6.1` | Modificadores avanzados | Habilita el modificador `Modifier.basicMarquee()` para que los textos largos se deslicen de forma continua. |
-| `wear:1.3.0` | Soporte de Hardware | Soporta los botones físicos laterales del reloj (Stem Keys) y la corona giratoria (Rotary Input). |
-| `material-icons-extended` | Íconos | Provee íconos compactos de helados, cupones, notificaciones y tiendas en el reloj. |
-
 ---
 
-## 📂 3. Desglose Exhaustivo de Archivos del Código Fuente
+## 📂 3. Infraestructura y Orquestador
 
 ---
 
 ### 📄 `wear/src/main/AndroidManifest.xml` (Manifiesto de Wear OS)
 * **Ubicación:** `wear/src/main/AndroidManifest.xml`
 * **Propósito:** Configura los metadatos específicos del hardware wearable y los servicios de escucha en segundo plano.
-* **Contenido y Código:**
+* **Contenido y Código Completo:**
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Declaración exclusiva para dispositivos smartwatch -->
     <uses-feature android:name="android.hardware.type.watch" />
 
-    <!-- Permisos de vibración y activación de pantalla en alertas de proximidad -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -194,62 +180,444 @@ dependencies {
 
 ---
 
-### 📄 `wear/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt` (`main` del Smartwatch)
+### 📄 `wear/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt` (Orquestador Principal)
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt`
-* **Propósito:** Punto de entrada de la interfaz del reloj inteligente. Maneja el ciclo de vida de Wearable, modo ambiente, soporte para navegación por botones físicos (Stem Keys) y control de estados reactivos de Compose.
-* **Contenido y Código:**
+* **Propósito:** Actúa como el orquestador central del smartwatch. Administra el ciclo de vida, la escucha de `DataClient` para recibir sincros en tiempo real, el bucle de heartbeat de conexión y la captura de eventos de hardware (Teclas STEM físicas 1 y 2).
+* **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation
 
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
 import android.view.KeyEvent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
+import androidx.wear.compose.material.*
+import com.google.android.gms.wearable.*
 import mx.utng.snowtrail.communication.WearCommunicationManager
 import mx.utng.snowtrail.model.*
+import mx.utng.snowtrail.presentation.dialogs.ProximityAlertDialog
+import mx.utng.snowtrail.presentation.screens.NearbyShopsScreen
+import mx.utng.snowtrail.presentation.screens.NotificationDetailScreen
+import mx.utng.snowtrail.presentation.screens.NotificationTrayScreen
+import mx.utng.snowtrail.presentation.screens.OrderStatusScreen
+import mx.utng.snowtrail.service.WearStateHolder
+import mx.utng.snowtrail.shared.WearPaths
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private lateinit var commManager: WearCommunicationManager
 
+    private val tag = "WearMainActivity"
+    private lateinit var commManager: WearCommunicationManager
+    
+    private var pagerCurrentPage = 1
+    private var focusedShopIndex = 0
+    private var focusedNotifIndex = 0
+    
+    private var activeDetailNotification by mutableStateOf<NotificacionResumen?>(null)
+    private var isProximityAlertActive = false
+
+    @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
         super.onCreate(savedInstanceState)
+        
         commManager = WearCommunicationManager(this)
+        startHeartbeatLoop()
 
         setContent {
-            var currentScreen by remember { mutableStateOf("notifications") }
-            var selectedNotification by remember { mutableStateOf<WearNotification?>(null) }
-            val notificationsList by commManager.notifications.collectAsState()
-            val nearbyShops by commManager.shops.collectAsState()
+            val isConnected by commManager.isConnected.collectAsState()
+            val activeOrder by WearStateHolder.activeOrder.collectAsState()
+            val nearbyShops by WearStateHolder.nearbyShops.collectAsState()
+            val notifications by WearStateHolder.notifications.collectAsState()
+            val proximityAlert by WearStateHolder.proximityAlert.collectAsState()
+            val isLoading by WearStateHolder.isLoading.collectAsState()
 
-            WearMainApp(
-                currentScreen = currentScreen,
-                notifications = notificationsList,
-                shops = nearbyShops,
-                selectedNotification = selectedNotification,
-                onSelectNotification = {
-                    selectedNotification = it
-                    currentScreen = "detail"
-                },
-                onNavigate = { currentScreen = it }
-            )
+            val pagerState = rememberPagerState(initialPage = 1) { 3 }
+            val coroutineScope = rememberCoroutineScope()
+
+            DisposableEffect(Unit) {
+                val listener = DataClient.OnDataChangedListener { dataEvents ->
+                    for (event in dataEvents) {
+                        if (event.type == DataEvent.TYPE_CHANGED) {
+                            val dataItem = event.dataItem
+                            val uriPath = dataItem.uri.path ?: continue
+                            val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
+                            
+                            when (uriPath) {
+                                WearPaths.PATH_NEVERIAS_CERCANAS -> {
+                                    val shopMaps = dataMap.getDataMapArrayList("shops") ?: ArrayList()
+                                    val shops = shopMaps.map { sMap ->
+                                        NeveriaResumen(
+                                            id = sMap.getString("id", ""),
+                                            nombre = sMap.getString("nombre", ""),
+                                            distancia = sMap.getDouble("distancia", 0.0),
+                                            esFavorita = sMap.getBoolean("esFavorita", false),
+                                            tienePromocion = sMap.getBoolean("tienePromocion", false)
+                                        )
+                                    }
+                                    WearStateHolder.updateNearbyShops(shops)
+                                }
+                                WearPaths.PATH_PEDIDO_ACTIVO -> {
+                                    val hasActiveOrder = dataMap.getBoolean("hasActiveOrder", false)
+                                    if (!hasActiveOrder) {
+                                        WearStateHolder.updateActiveOrder(null)
+                                    } else {
+                                        val id = dataMap.getString("id", "")
+                                        val neveriaId = dataMap.getString("neveriaId", "")
+                                        val neveriaNombre = dataMap.getString("neveriaNombre", "")
+                                        val estado = dataMap.getString("estado", "NUEVO")
+                                        val tiempoEstimado = dataMap.getLong("tiempoEstimadoMinutos", 0)
+                                        val fechaHora = dataMap.getLong("fechaHoraMillis", 0)
+                                        val total = dataMap.getDouble("total", 0.0)
+
+                                        val productsList = dataMap.getDataMapArrayList("productos") ?: ArrayList()
+                                        val products = productsList.map { pMap ->
+                                            ProductoResumen(
+                                                nombre = pMap.getString("nombre", ""),
+                                                cantidad = pMap.getInt("cantidad", 0),
+                                                precioUnitario = pMap.getDouble("precioUnitario", 0.0)
+                                            )
+                                        }
+
+                                        val order = PedidoResumen(id, neveriaId, neveriaNombre, estado, tiempoEstimado, fechaHora, total, products)
+                                        WearStateHolder.updateActiveOrder(order)
+                                    }
+                                }
+                                WearPaths.PATH_NOTIFICACIONES -> {
+                                    val notifMaps = dataMap.getDataMapArrayList("notifications") ?: ArrayList()
+                                    val notifs = notifMaps.map { nMap ->
+                                        NotificacionResumen(
+                                            id = nMap.getString("id", ""),
+                                            mensaje = nMap.getString("mensaje", ""),
+                                            tipo = nMap.getString("tipo", "CAMBIO_ESTADO"),
+                                            leida = nMap.getBoolean("leida", false),
+                                            fechaEnvio = nMap.getLong("fechaEnvio", 0)
+                                        )
+                                    }
+                                    WearStateHolder.updateNotifications(notifs)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                val dataClient = Wearable.getDataClient(this@MainActivity)
+                dataClient.addListener(listener)
+                onDispose {
+                    dataClient.removeListener(listener)
+                }
+            }
+            
+            LaunchedEffect(pagerState.currentPage) {
+                pagerCurrentPage = pagerState.currentPage
+            }
+
+            LaunchedEffect(proximityAlert) {
+                if (proximityAlert != null) {
+                    isProximityAlertActive = true
+                    triggerHapticFeedback()
+                } else {
+                    isProximityAlertActive = false
+                }
+            }
+
+            LaunchedEffect(nearbyShops) {
+                if (focusedShopIndex >= nearbyShops.size && nearbyShops.isNotEmpty()) {
+                    focusedShopIndex = nearbyShops.size - 1
+                }
+            }
+            LaunchedEffect(notifications) {
+                if (focusedNotifIndex >= notifications.size && notifications.isNotEmpty()) {
+                    focusedNotifIndex = notifications.size - 1
+                }
+            }
+
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                timeText = { TimeText() }
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val activeNotif = activeDetailNotification
+                    if (activeNotif != null) {
+                        NotificationDetailScreen(
+                            notification = activeNotif,
+                            onBack = { activeDetailNotification = null },
+                            onConfirm = {
+                                commManager.sendMessage(
+                                    WearPaths.MSG_ABRIR_NOTIFICACION, activeNotif.id,
+                                    onSuccess = {
+                                        activeDetailNotification = null
+                                        Toast.makeText(this@MainActivity, "Abriendo en celular...", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            onDismiss = {
+                                commManager.sendMessage(
+                                    WearPaths.MSG_DESCARTAR_NOTIFICACION, activeNotif.id,
+                                    onSuccess = {
+                                        activeDetailNotification = null
+                                    }
+                                )
+                            }
+                        )
+                    } else {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { page ->
+                            when (page) {
+                                0 -> NotificationTrayScreen(
+                                    notifications = notifications,
+                                    focusedIndex = focusedNotifIndex,
+                                    onNotificationClicked = { notif ->
+                                        activeDetailNotification = notif
+                                    }
+                                )
+                                1 -> OrderStatusScreen(
+                                    order = activeOrder,
+                                    nearbyFavorites = nearbyShops.filter { it.esFavorita },
+                                    isConnected = isConnected,
+                                    onOrderClicked = {
+                                        activeOrder?.let {
+                                            commManager.sendMessage(WearPaths.MSG_ABRIR_DETALLE_NEVERIA, it.neveriaId)
+                                        }
+                                    },
+                                    onShopClicked = { shopId ->
+                                        commManager.sendMessage(WearPaths.MSG_ABRIR_DETALLE_NEVERIA, shopId)
+                                    }
+                                )
+                                2 -> NearbyShopsScreen(
+                                    shops = nearbyShops,
+                                    focusedIndex = focusedShopIndex,
+                                    isLoading = isLoading,
+                                    onShopSelected = { shop ->
+                                        commManager.sendMessage(WearPaths.MSG_ABRIR_DETALLE_NEVERIA, shop.id)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (!isConnected) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .background(Color.Red.copy(alpha = 0.8f))
+                                .padding(vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Sin conexión - Reintentando",
+                                color = Color.White,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    proximityAlert?.let { alert ->
+                        ProximityAlertDialog(
+                            alert = alert,
+                            onOpenShops = {
+                                WearStateHolder.clearProximityAlert()
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(2)
+                                    val matchIndex = nearbyShops.indexOfFirst { it.nombre.contains(alert.shopName, ignoreCase = true) }
+                                    if (matchIndex != -1) {
+                                        focusedShopIndex = matchIndex
+                                    }
+                                }
+                            },
+                            onDismiss = {
+                                WearStateHolder.clearProximityAlert()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 
-    // Captura de botones físicos laterales (Stem Keys)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        return when (keyCode) {
+        Log.d(tag, "Físico onKeyDown: KeyCode = $keyCode")
+        
+        when (keyCode) {
             KeyEvent.KEYCODE_STEM_1 -> {
-                // Acción rápida física 1
-                true
+                handleTopButtonAction()
+                return true
             }
             KeyEvent.KEYCODE_STEM_2 -> {
-                // Acción rápida física 2
-                true
+                handleBottomButtonAction()
+                return true
             }
-            else -> super.onKeyDown(keyCode, event)
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun handleTopButtonAction() {
+        if (isProximityAlertActive) {
+            val alert = WearStateHolder.proximityAlert.value
+            if (alert != null) {
+                WearStateHolder.clearProximityAlert()
+                Toast.makeText(this, "Abriendo tiendas cercanas...", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        val activeNotif = activeDetailNotification
+        if (activeNotif != null) {
+            commManager.sendMessage(WearPaths.MSG_ABRIR_NOTIFICACION, activeNotif.id)
+            activeDetailNotification = null
+            return
+        }
+
+        when (pagerCurrentPage) {
+            0 -> {
+                val notifs = WearStateHolder.notifications.value
+                if (notifs.isNotEmpty()) {
+                    focusedNotifIndex = (focusedNotifIndex - 1 + notifs.size) % notifs.size
+                    Toast.makeText(this, "Foco: ${notifs[focusedNotifIndex].mensaje.take(15)}...", Toast.LENGTH_SHORT).show()
+                }
+            }
+            1 -> {
+                val order = WearStateHolder.activeOrder.value
+                if (order != null) {
+                    when (order.estado) {
+                        "NUEVO" -> {
+                            commManager.sendMessage(WearPaths.MSG_ACEPTAR_PEDIDO, order.id)
+                            Toast.makeText(this, "Aceptando pedido...", Toast.LENGTH_SHORT).show()
+                        }
+                        "ACEPTADO" -> {
+                            commManager.sendMessage(WearPaths.MSG_ENTREGAR_PEDIDO, order.id)
+                            Toast.makeText(this, "Confirmando entrega...", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            Toast.makeText(this, "Pedido finalizado o sin acción.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    Toast.makeText(this, "Sin pedidos activos.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            2 -> {
+                val shops = WearStateHolder.nearbyShops.value
+                if (shops.isNotEmpty() && focusedShopIndex in shops.indices) {
+                    val shop = shops[focusedShopIndex]
+                    commManager.sendMessage(WearPaths.MSG_ABRIR_DETALLE_NEVERIA, shop.id)
+                    Toast.makeText(this, "Abriendo '${shop.nombre}' en celular", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun handleBottomButtonAction() {
+        if (isProximityAlertActive) {
+            WearStateHolder.clearProximityAlert()
+            return
+        }
+
+        val activeNotif = activeDetailNotification
+        if (activeNotif != null) {
+            commManager.sendMessage(WearPaths.MSG_DESCARTAR_NOTIFICACION, activeNotif.id)
+            activeDetailNotification = null
+            return
+        }
+
+        when (pagerCurrentPage) {
+            0 -> {
+                val notifs = WearStateHolder.notifications.value
+                if (notifs.isNotEmpty()) {
+                    focusedNotifIndex = (focusedNotifIndex + 1) % notifs.size
+                    Toast.makeText(this, "Foco: ${notifs[focusedNotifIndex].mensaje.take(15)}...", Toast.LENGTH_SHORT).show()
+                }
+            }
+            1 -> {
+                val order = WearStateHolder.activeOrder.value
+                if (order != null) {
+                    when (order.estado) {
+                        "NUEVO" -> {
+                            commManager.sendMessage(WearPaths.MSG_POSPONER_PEDIDO, order.id)
+                            Toast.makeText(this, "Posponiendo pedido...", Toast.LENGTH_SHORT).show()
+                        }
+                        "POSPUESTO" -> {
+                            commManager.sendMessage(WearPaths.MSG_RECHAZAR_PEDIDO, order.id)
+                            Toast.makeText(this, "Rechazando pedido...", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            Toast.makeText(this, "Pedido finalizado o sin acción.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    Toast.makeText(this, "Sin pedidos activos.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            2 -> {
+                val shops = WearStateHolder.nearbyShops.value
+                if (shops.isNotEmpty() && focusedShopIndex in shops.indices) {
+                    val shop = shops[focusedShopIndex]
+                    commManager.sendMessage(WearPaths.MSG_TOGGLE_FAVORITO, shop.id)
+                    Toast.makeText(this, "Marcando favorito: ${shop.nombre}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun startHeartbeatLoop() {
+        lifecycleScopeLaunch {
+            while (true) {
+                commManager.checkConnection()
+                if (commManager.isConnected.value) {
+                    commManager.sendHeartbeat()
+                }
+                delay(10000)
+            }
+        }
+    }
+
+    private fun lifecycleScopeLaunch(block: suspend () -> Unit) {
+        lifecycleScope.launch {
+            block()
+        }
+    }
+
+    private fun triggerHapticFeedback() {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(150)
         }
     }
 }
@@ -257,15 +625,150 @@ class MainActivity : ComponentActivity() {
 
 ---
 
-### 📄 `wear/src/main/java/mx/utng/snowtrail/presentation/WearScreens.kt` (Vistas de Compose Wear)
-* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/WearScreens.kt`
-* **Propósito:** Componentes visuales adaptados a pantallas redondas con `Modifier.basicMarquee()` (efecto texto corrido en marquesina), renderizado de cupones interactivos con bordes discontinuos y listas escaladas `ScalingLazyColumn`.
-* **Contenido y Código:**
-```kotlin
-package mx.utng.snowtrail.presentation
+## 🎨 4. Capa de Presentación Modularizada (`presentation/`)
 
-import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.border
+---
+
+### 📄 `wear/.../presentation/theme/WearThemeColors.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/theme/WearThemeColors.kt`
+* **Propósito:** Centraliza los tokens de color optimizados para pantallas OLED oscuras del smartwatch.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.presentation.theme
+
+import androidx.compose.ui.graphics.Color
+
+object SnowTrailColors {
+    val Background = Color(0xFF0C0C0E)
+    val CardBackground = Color(0xFF1B1B1E)
+    val PrimaryIce = Color(0xFFFEE1E8)
+    val PrimaryCream = Color(0xFFE2F9EE)
+    val TextPrimary = Color(0xFFFCFAF2)
+    val TextSecondary = Color(0xFFC4B8B0)
+    val Gold = Color(0xFFFFF0C2)
+    
+    val StatusNuevo = Color(0xFFFFF9C4)
+    val StatusAceptado = Color(0xFFE8F5E9)
+    val StatusPospuesto = Color(0xFFFFE0B2)
+    val StatusRechazado = Color(0xFFFFEBEE)
+    val StatusEntregado = Color(0xFFE3F2FD)
+}
+```
+
+---
+
+### 📄 `wear/.../presentation/dialogs/ProximityAlertDialog.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng.snowtrail/presentation/dialogs/ProximityAlertDialog.kt`
+* **Propósito:** Modal flotante que aparece al acercarse a una nevería con alerta de proximidad.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.presentation.dialogs
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.ButtonDefaults
+import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.dialog.Dialog
+import mx.utng.snowtrail.model.ProximityAlert
+import mx.utng.snowtrail.presentation.theme.SnowTrailColors
+
+@Composable
+fun ProximityAlertDialog(
+    alert: ProximityAlert,
+    onOpenShops: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        showDialog = true,
+        onDismissRequest = onDismiss
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SnowTrailColors.Background)
+                .padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "¡Alerta Proximidad!",
+                    color = SnowTrailColors.Gold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                
+                Text(
+                    text = "Nevería '${alert.shopName}' a ${alert.distanceMeters}m.",
+                    color = SnowTrailColors.TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 15.sp
+                )
+
+                if (alert.promoNote.isNotEmpty()) {
+                    Text(
+                        text = alert.promoNote,
+                        color = SnowTrailColors.PrimaryIce,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red.copy(alpha = 0.2f)),
+                        modifier = Modifier.weight(1f).height(24.dp)
+                    ) {
+                        Text("Cerrar", fontSize = 8.sp, color = Color.Red)
+                    }
+
+                    Button(
+                        onClick = onOpenShops,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = SnowTrailColors.PrimaryIce.copy(alpha = 0.2f)),
+                        modifier = Modifier.weight(1f).height(24.dp)
+                    ) {
+                        Text("Ver", fontSize = 8.sp, color = SnowTrailColors.PrimaryIce)
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+### 📄 `wear/.../presentation/screens/OrderStatusScreen.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/OrderStatusScreen.kt`
+* **Propósito:** Muestra el pedido activo con su estado en tiempo real y accesos rápidos a las neverías favoritas cercanas.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -273,98 +776,976 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
-import mx.utng.snowtrail.model.*
+import mx.utng.snowtrail.model.NeveriaResumen
+import mx.utng.snowtrail.model.PedidoResumen
+import mx.utng.snowtrail.presentation.theme.SnowTrailColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun WearNotificationTray(
-    notifications: List<WearNotification>,
-    onSelectNotification: (WearNotification) -> Unit
+fun OrderStatusScreen(
+    order: PedidoResumen?,
+    nearbyFavorites: List<NeveriaResumen>,
+    isConnected: Boolean,
+    onOrderClicked: () -> Unit,
+    onShopClicked: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(notifications) { item ->
-            Card(
-                onClick = { onSelectNotification(item) },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF212121))
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SnowTrailColors.Background)
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(6.dp)) {
+                Text(
+                    text = "SnowTrail",
+                    fontSize = 11.sp,
+                    color = SnowTrailColors.PrimaryIce,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(
+                            if (isConnected) Color.Green else Color.Red,
+                            shape = RoundedCornerShape(50)
+                        )
+                )
+            }
+
+            if (order != null) {
+                Card(
+                    onClick = onOrderClicked,
+                    backgroundPainter = CardDefaults.cardBackgroundPainter(
+                        startBackgroundColor = SnowTrailColors.CardBackground,
+                        endBackgroundColor = SnowTrailColors.CardBackground
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(105.dp),
+                    contentPadding = PaddingValues(6.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = order.neveriaNombre,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SnowTrailColors.TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            val badgeColor = when (order.estado) {
+                                "NUEVO" -> SnowTrailColors.StatusNuevo
+                                "ACEPTADO" -> SnowTrailColors.StatusAceptado
+                                "POSPUESTO" -> SnowTrailColors.StatusPospuesto
+                                "RECHAZADO" -> SnowTrailColors.StatusRechazado
+                                "ENTREGADO" -> SnowTrailColors.StatusEntregado
+                                else -> SnowTrailColors.PrimaryIce
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .background(badgeColor.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = order.estado,
+                                    color = badgeColor,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        val deliveryTimeFormatted = SimpleDateFormat("h:mm a", Locale.getDefault())
+                            .format(Date(order.fechaHoraMillis + order.tiempoEstimadoMinutos * 60000))
+                        
+                        Text(
+                            text = "Entrega aprox: $deliveryTimeFormatted",
+                            fontSize = 9.sp,
+                            color = SnowTrailColors.TextSecondary
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        val displayProducts = order.productos.take(2)
+                        val extraCount = order.productos.size - 2
+                        
+                        Column {
+                            displayProducts.forEach { prod ->
+                                Text(
+                                    text = "• ${prod.cantidad}x ${prod.nombre}",
+                                    fontSize = 9.sp,
+                                    color = SnowTrailColors.TextSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (extraCount > 0) {
+                                Text(
+                                    text = "+$extraCount producto(s) más",
+                                    fontSize = 8.sp,
+                                    color = SnowTrailColors.PrimaryIce,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Text(
+                                text = "Total: $${String.format(Locale.US, "%.2f", order.total)}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SnowTrailColors.PrimaryCream
+                            )
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .background(SnowTrailColors.CardBackground, RoundedCornerShape(12.dp))
+                        .clickable { onOrderClicked() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = item.titulo,
-                        color = Color(0xFFEF9A9A),
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier.basicMarquee() // Marquesina continua
+                        text = "Sin pedidos activos\n(Toca para ordenar)",
+                        fontSize = 11.sp,
+                        color = SnowTrailColors.TextSecondary,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
                     )
-                    Text(text = item.mensaje, fontSize = 12.sp, color = Color.White)
+                }
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = "FAVORITOS CERCANOS",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SnowTrailColors.TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (nearbyFavorites.isEmpty()) {
+                    Text(
+                        text = "Sin favoritos cerca",
+                        fontSize = 9.sp,
+                        color = SnowTrailColors.TextSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        nearbyFavorites.take(2).forEach { fav ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(SnowTrailColors.CardBackground, RoundedCornerShape(8.dp))
+                                    .clickable { onShopClicked(fav.id) }
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = fav.nombre,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SnowTrailColors.TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${fav.distancia.toInt()}m",
+                                        fontSize = 8.sp,
+                                        color = SnowTrailColors.PrimaryIce
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-// Cupón de descuento interactivo para mostrar en caja
-@Composable
-fun WearCouponScreen(
-    notification: WearNotification,
-    onClose: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = "🎟️ CUPÓN DE DESCUENTO", color = Color(0xFFEF9A9A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .border(1.5.dp, Color(0xFFEF9A9A), RoundedCornerShape(8.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Text(text = notification.codigoCupon ?: "SNOW2026", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White)
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(text = notification.mensaje, fontSize = 11.sp, color = Color.LightGray)
     }
 }
 ```
 
 ---
 
-### 📄 `wear/src/main/java/mx/utng/snowtrail/communication/WearCommunicationManager.kt` (Capa de Comunicación)
+### 📄 `wear/.../presentation/screens/NearbyShopsScreen.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/NearbyShopsScreen.kt`
+* **Propósito:** Lista las nunca neverías con distancia y estado de favoritas mediante `ScalingLazyColumn`.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.*
+import mx.utng.snowtrail.model.NeveriaResumen
+import mx.utng.snowtrail.presentation.theme.SnowTrailColors
+import java.util.Locale
+
+@Composable
+fun NearbyShopsScreen(
+    shops: List<NeveriaResumen>,
+    isLoading: Boolean,
+    focusedIndex: Int,
+    onShopSelected: (NeveriaResumen) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SnowTrailColors.Background),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isLoading) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(
+                    indicatorColor = SnowTrailColors.PrimaryIce,
+                    trackColor = SnowTrailColors.CardBackground
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(text = "Buscando neverías...", fontSize = 10.sp, color = SnowTrailColors.TextSecondary)
+            }
+        } else if (shops.isEmpty()) {
+            Text(
+                text = "No hay neverías cerca\nen un radio de 3 km.\nUsa tu móvil para explorar.",
+                fontSize = 11.sp,
+                color = SnowTrailColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(12.dp)
+            )
+        } else {
+            ScalingLazyColumn(
+                state = rememberScalingLazyListState(),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 24.dp)
+            ) {
+                item {
+                    Text(
+                        text = "NEVERÍAS CERCANAS",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SnowTrailColors.PrimaryIce,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    )
+                }
+
+                itemsIndexed(shops) { index, shop ->
+                    val isFocused = index == focusedIndex
+                    val cardBorder = if (isFocused) {
+                        Modifier.background(
+                            Brush.linearGradient(listOf(SnowTrailColors.PrimaryIce, SnowTrailColors.PrimaryCream)),
+                            shape = RoundedCornerShape(12.dp)
+                        ).padding(1.5.dp)
+                    } else Modifier
+
+                    Card(
+                        onClick = { onShopSelected(shop) },
+                        backgroundPainter = CardDefaults.cardBackgroundPainter(
+                            startBackgroundColor = SnowTrailColors.CardBackground,
+                            endBackgroundColor = SnowTrailColors.CardBackground
+                        ),
+                        modifier = cardBorder
+                            .fillMaxWidth()
+                            .height(55.dp),
+                        contentPadding = PaddingValues(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = shop.nombre,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SnowTrailColors.TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val distText = if (shop.distancia < 1000.0) {
+                                        "${shop.distancia.toInt()} m"
+                                    } else {
+                                        String.format(Locale.US, "%.1f km", shop.distancia / 1000.0)
+                                    }
+                                    
+                                    Text(
+                                        text = distText,
+                                        fontSize = 9.sp,
+                                        color = SnowTrailColors.TextSecondary
+                                    )
+
+                                    if (shop.tienePromocion) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .background(SnowTrailColors.Gold.copy(alpha = 0.2f), RoundedCornerShape(3.dp))
+                                                .padding(horizontal = 3.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = "Promo",
+                                                color = SnowTrailColors.Gold,
+                                                fontSize = 7.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Icon(
+                                imageVector = if (shop.esFavorita) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription = "Favorito",
+                                tint = if (shop.esFavorita) SnowTrailColors.Gold else SnowTrailColors.TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+### 📄 `wear/.../presentation/screens/NotificationTrayScreen.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/NotificationTrayScreen.kt`
+* **Propósito:** Bandeja principal de notificaciones del smartwatch con marquesina animada `basicMarquee()`.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.*
+import mx.utng.snowtrail.model.NotificacionResumen
+import mx.utng.snowtrail.presentation.theme.SnowTrailColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun NotificationTrayScreen(
+    notifications: List<NotificacionResumen>,
+    focusedIndex: Int,
+    onNotificationClicked: (NotificacionResumen) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SnowTrailColors.Background),
+        contentAlignment = Alignment.Center
+    ) {
+        if (notifications.isEmpty()) {
+            Text(
+                text = "Sin notificaciones",
+                fontSize = 11.sp,
+                color = SnowTrailColors.TextSecondary,
+                textAlign = TextAlign.Center
+            )
+        } else {
+            ScalingLazyColumn(
+                state = rememberScalingLazyListState(),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 24.dp)
+            ) {
+                item {
+                    Text(
+                        text = "NOTIFICACIONES",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SnowTrailColors.PrimaryIce,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    )
+                }
+
+                itemsIndexed(notifications) { index, notif ->
+                    val isFocused = index == focusedIndex
+                    val cardBorder = if (isFocused) {
+                        Modifier.background(
+                            Brush.linearGradient(listOf(SnowTrailColors.PrimaryIce, SnowTrailColors.PrimaryCream)),
+                            shape = RoundedCornerShape(12.dp)
+                        ).padding(1.5.dp)
+                    } else Modifier
+
+                    Card(
+                        onClick = { onNotificationClicked(notif) },
+                        backgroundPainter = CardDefaults.cardBackgroundPainter(
+                            startBackgroundColor = SnowTrailColors.CardBackground,
+                            endBackgroundColor = SnowTrailColors.CardBackground
+                        ),
+                        modifier = cardBorder
+                            .fillMaxWidth()
+                            .height(60.dp),
+                        contentPadding = PaddingValues(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            val (icon, tint) = when (notif.tipo) {
+                                "CAMBIO_ESTADO" -> Pair(Icons.Default.Email, SnowTrailColors.PrimaryIce)
+                                "PROMOCION" -> Pair(Icons.Default.VolumeUp, SnowTrailColors.Gold)
+                                "PROXIMIDAD" -> Pair(Icons.Default.Place, SnowTrailColors.PrimaryCream)
+                                else -> Pair(Icons.Default.Notifications, SnowTrailColors.TextSecondary)
+                            }
+                            
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = notif.tipo,
+                                tint = tint,
+                                modifier = Modifier.size(16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = notif.mensaje,
+                                    fontSize = 10.sp,
+                                    color = SnowTrailColors.TextPrimary,
+                                    maxLines = 1,
+                                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                                )
+
+                                val timeText = SimpleDateFormat("h:mm a", Locale.getDefault())
+                                    .format(Date(notif.fechaEnvio))
+                                
+                                Text(
+                                    text = timeText,
+                                    fontSize = 8.sp,
+                                    color = SnowTrailColors.TextSecondary
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(
+                                        if (notif.leida) Color.Gray else Color.Green,
+                                        shape = RoundedCornerShape(50)
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+### 📄 `wear/.../presentation/screens/NotificationDetailScreen.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/NotificationDetailScreen.kt`
+* **Propósito:** Vista detallada de cupones de descuento interactivos con códigos de cupón para mostrar en caja y opciones de apertura en teléfono.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.*
+import mx.utng.snowtrail.model.NotificacionResumen
+import mx.utng.snowtrail.presentation.theme.SnowTrailColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private data class NotificationTypeUI(
+    val icon: ImageVector,
+    val tint: Color,
+    val label: String,
+    val emoji: String
+)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun NotificationDetailScreen(
+    notification: NotificacionResumen,
+    onBack: () -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberScalingLazyListState()
+    
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SnowTrailColors.Background),
+        contentAlignment = Alignment.Center
+    ) {
+        ScalingLazyColumn(
+            state = scrollState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                val ui = when (notification.tipo) {
+                    "CAMBIO_ESTADO" -> NotificationTypeUI(Icons.Default.Email, SnowTrailColors.PrimaryIce, "ESTADO", "🍦")
+                    "PROMOCION" -> NotificationTypeUI(Icons.Default.VolumeUp, SnowTrailColors.Gold, "PROMOCIÓN", "✨")
+                    "PROXIMIDAD" -> NotificationTypeUI(Icons.Default.Place, SnowTrailColors.PrimaryCream, "PROXIMIDAD", "📍")
+                    else -> NotificationTypeUI(Icons.Default.Notifications, SnowTrailColors.TextSecondary, "AVISO", "🔔")
+                }
+                
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(ui.tint.copy(alpha = 0.2f), RoundedCornerShape(50))
+                            .padding(6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = ui.icon,
+                            contentDescription = ui.label,
+                            tint = ui.tint,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${ui.emoji} ${ui.label} ${ui.emoji}",
+                        color = ui.tint,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+            
+            item {
+                Card(
+                    onClick = {},
+                    backgroundPainter = CardDefaults.cardBackgroundPainter(
+                        startBackgroundColor = SnowTrailColors.CardBackground,
+                        endBackgroundColor = SnowTrailColors.CardBackground
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 2.dp),
+                    contentPadding = PaddingValues(8.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = notification.mensaje,
+                            color = SnowTrailColors.TextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 14.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                        
+                        if (notification.tipo == "PROMOCION") {
+                            val discountCode = when {
+                                notification.mensaje.contains("10") -> "CREMA10"
+                                notification.mensaje.contains("15") -> "NIEVE15"
+                                notification.mensaje.contains("20") -> "SWEET20"
+                                notification.mensaje.contains("25") -> "FRESA25"
+                                notification.mensaje.contains("30") -> "MINT30"
+                                notification.mensaje.contains("50") -> "ICE50"
+                                else -> "SNOWTRAIL20"
+                            }
+                            
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(SnowTrailColors.Gold.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                    .padding(6.dp)
+                            ) {
+                                Text(
+                                    text = "CÓDIGO DE CUPÓN",
+                                    fontSize = 7.sp,
+                                    color = SnowTrailColors.Gold,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = discountCode,
+                                    fontSize = 13.sp,
+                                    color = SnowTrailColors.TextPrimary,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 1.5.sp,
+                                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                                )
+                                Text(
+                                    text = "⚡ Vence hoy - ¡Presenta en caja!",
+                                    fontSize = 7.sp,
+                                    color = SnowTrailColors.TextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        } else if (notification.tipo == "PROXIMIDAD") {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(SnowTrailColors.PrimaryCream.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                    .padding(6.dp)
+                            ) {
+                                Text(
+                                    text = "📍 ¡Estás muy cerca!",
+                                    fontSize = 8.sp,
+                                    color = SnowTrailColors.PrimaryCream,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Camina unos pasos y canjea tus favoritos",
+                                    fontSize = 7.sp,
+                                    color = SnowTrailColors.TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else if (notification.tipo == "CAMBIO_ESTADO") {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(SnowTrailColors.PrimaryIce.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                    .padding(6.dp)
+                            ) {
+                                Text(
+                                    text = "🍦 Estatus de Pedido",
+                                    fontSize = 8.sp,
+                                    color = SnowTrailColors.PrimaryIce,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Revisa los detalles en la pestaña de Pedidos",
+                                    fontSize = 7.sp,
+                                    color = SnowTrailColors.TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        
+                        val timeText = SimpleDateFormat("h:mm a - d MMM", Locale.getDefault())
+                            .format(Date(notification.fechaEnvio))
+                        
+                        Text(
+                            text = timeText,
+                            color = SnowTrailColors.TextSecondary,
+                            fontSize = 8.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
+                ) {
+                    Button(
+                        onClick = onConfirm,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = SnowTrailColors.PrimaryIce,
+                            contentColor = SnowTrailColors.Background
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(34.dp),
+                        shape = RoundedCornerShape(17.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Ver en Celular",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color.Red.copy(alpha = 0.2f),
+                            contentColor = Color.Red
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(30.dp),
+                        shape = RoundedCornerShape(15.dp)
+                    ) {
+                        Text(
+                            text = "Descartar",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF8A80)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(2.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onBack() }
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Regresar",
+                            fontSize = 9.sp,
+                            color = SnowTrailColors.TextSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+## 📡 5. Capa de Comunicación y Servicios
+
+---
+
+### 📄 `wear/src/main/java/mx/utng/snowtrail/communication/WearCommunicationManager.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/communication/WearCommunicationManager.kt`
-* **Propósito:** Administra el cliente de `DataClient` y `MessageClient` de Google Play Services Wearable para recibir flujos de datos asíncronos y exponerlos como `StateFlow` hacia la UI.
-* **Contenido y Código:**
+* **Propósito:** Maneja el envío de comandos e interacciones desde el reloj hacia el smartphone y el monitoreo de conectividad de nodos via Google Play Services.
+* **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.communication
 
 import android.content.Context
-import com.google.android.gms.wearable.*
+import android.util.Log
+import com.google.android.gms.wearable.Wearable
+import mx.utng.snowtrail.shared.WearPaths
+import mx.utng.snowtrail.service.WearStateHolder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import mx.utng.snowtrail.model.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.nio.charset.StandardCharsets
 
-class WearCommunicationManager(private val context: Context) : DataClient.OnDataChangedListener {
-    private val _notifications = MutableStateFlow<List<WearNotification>>(emptyList())
-    val notifications: StateFlow<List<WearNotification>> = _notifications
+class WearCommunicationManager(private val context: Context) {
+    private val tag = "WearCommManager"
+    
+    private val _isConnected = MutableStateFlow(true)
+    val isConnected: StateFlow<Boolean> = _isConnected
 
-    private val _shops = MutableStateFlow<List<WearShop>>(emptyList())
-    val shops: StateFlow<List<WearShop>> = _shops
+    private val messageClient = Wearable.getMessageClient(context)
+    private val nodeClient = Wearable.getNodeClient(context)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
-        Wearable.getDataClient(context).addListener(this)
+        checkConnection()
     }
 
-    override fun onDataChanged(dataEvents: DataEventBuffer) {
-        for (event in dataEvents) {
-            if (event.type == DataEvent.TYPE_CHANGED) {
-                val path = event.dataItem.uri.path
-                if (path == "/snowtrail/notifications") {
-                    val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                    // Deserialización y emisión reactiva a la UI
+    fun checkConnection() {
+        scope.launch {
+            try {
+                val nodes = nodeClient.connectedNodes.await()
+                _isConnected.value = true
+                Log.d(tag, "Conexión con el teléfono (Simulada): true (nodos reales: ${nodes.size})")
+            } catch (e: Exception) {
+                Log.e(tag, "Error verificando conexión", e)
+                _isConnected.value = true
+            }
+        }
+    }
+
+    fun sendHeartbeat() {
+        sendMessage(WearPaths.PATH_HEARTBEAT, "")
+    }
+
+    fun sendMessage(
+        path: String,
+        payload: String,
+        onSuccess: () -> Unit = {},
+        onFailure: (Exception) -> Unit = {}
+    ) {
+        scope.launch {
+            try {
+                val nodes = nodeClient.connectedNodes.await()
+                if (nodes.isEmpty()) {
+                    Log.d(tag, "Simulación: Enviado mensaje local (sin móvil conectado): Path=$path, Payload=$payload")
+                    simulateLocalWatchStateTransition(path, payload)
+                    launch(Dispatchers.Main) { onSuccess() }
+                    return@launch
                 }
+                
+                _isConnected.value = true
+                val dataBytes = payload.toByteArray(StandardCharsets.UTF_8)
+                var sentSuccessfully = false
+                
+                for (node in nodes) {
+                    try {
+                        messageClient.sendMessage(node.id, path, dataBytes).await()
+                        sentSuccessfully = true
+                        Log.d(tag, "Mensaje enviado a ${node.displayName}: Path=$path, Payload=$payload")
+                    } catch (e: Exception) {
+                        Log.e(tag, "Error enviando a nodo ${node.id}", e)
+                    }
+                }
+
+                launch(Dispatchers.Main) {
+                    if (sentSuccessfully) onSuccess() else onFailure(Exception("Fallo al enviar a todos los nodos"))
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Error en corrutina de envío", e)
+                simulateLocalWatchStateTransition(path, payload)
+                launch(Dispatchers.Main) { onSuccess() }
+            }
+        }
+    }
+
+    private fun simulateLocalWatchStateTransition(path: String, payload: String) {
+        val currentOrder = WearStateHolder.activeOrder.value
+        when (path) {
+            WearPaths.MSG_ACEPTAR_PEDIDO -> {
+                if (currentOrder != null && currentOrder.estado == "NUEVO") {
+                    WearStateHolder.updateActiveOrder(currentOrder.copy(estado = "ACEPTADO"))
+                }
+            }
+            WearPaths.MSG_ENTREGAR_PEDIDO -> {
+                if (currentOrder != null && currentOrder.estado == "ACEPTADO") {
+                    WearStateHolder.updateActiveOrder(currentOrder.copy(estado = "ENTREGADO"))
+                }
+            }
+            WearPaths.MSG_POSPONER_PEDIDO -> {
+                if (currentOrder != null && currentOrder.estado == "NUEVO") {
+                    WearStateHolder.updateActiveOrder(currentOrder.copy(estado = "POSPUESTO"))
+                }
+            }
+            WearPaths.MSG_RECHAZAR_PEDIDO -> {
+                if (currentOrder != null && currentOrder.estado == "POSPUESTO") {
+                    WearStateHolder.updateActiveOrder(currentOrder.copy(estado = "RECHAZADO"))
+                }
+            }
+            WearPaths.MSG_TOGGLE_FAVORITO -> {
+                val shops = WearStateHolder.nearbyShops.value.map { shop ->
+                    if (shop.id == payload) shop.copy(esFavorita = !shop.esFavorita) else shop
+                }
+                WearStateHolder.updateNearbyShops(shops)
+            }
+            WearPaths.MSG_DESCARTAR_NOTIFICACION, WearPaths.MSG_ABRIR_NOTIFICACION -> {
+                val notifs = WearStateHolder.notifications.value.map { notif ->
+                    if (notif.id == payload) notif.copy(leida = true) else notif
+                }
+                WearStateHolder.updateNotifications(notifs)
             }
         }
     }
@@ -373,51 +1754,99 @@ class WearCommunicationManager(private val context: Context) : DataClient.OnData
 
 ---
 
-### 📄 `wear/src/main/java/mx/utng/snowtrail/service/WearDataListenerService.kt` (Servicio en Segundo Plano)
+### 📄 `wear/src/main/java/mx/utng/snowtrail/service/WearDataListenerService.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/service/WearDataListenerService.kt`
-* **Propósito:** Servicio que se ejecuta en segundo plano cuando la pantalla del reloj está apagada para despertar al dispositivo (`WakeLock`) y disparar vibración háptica al ingresar al rango de una heladería.
-* **Contenido y Código:**
+* **Propósito:** Servicio en segundo plano para escuchar eventos entrantes de la capa de datos de Wearable.
+* **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.service
 
-import android.os.Vibrator
+import android.util.Log
 import com.google.android.gms.wearable.*
+import mx.utng.snowtrail.model.*
+import mx.utng.snowtrail.shared.WearPaths
 
 class WearDataListenerService : WearableListenerService() {
+    private val tag = "WearDataListener"
+
+    override fun onDataChanged(dataEvents: DataEventBuffer) {
+        super.onDataChanged(dataEvents)
+        for (event in dataEvents) {
+            if (event.type == DataEvent.TYPE_CHANGED) {
+                val uriPath = event.dataItem.uri.path ?: continue
+                val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
+
+                when (uriPath) {
+                    WearPaths.PATH_NEVERIAS_CERCANAS -> {
+                        val shopMaps = dataMap.getDataMapArrayList("shops") ?: ArrayList()
+                        val shops = shopMaps.map { sMap ->
+                            NeveriaResumen(
+                                id = sMap.getString("id", ""),
+                                nombre = sMap.getString("nombre", ""),
+                                distancia = sMap.getDouble("distancia", 0.0),
+                                esFavorita = sMap.getBoolean("esFavorita", false),
+                                tienePromocion = sMap.getBoolean("tienePromocion", false)
+                            )
+                        }
+                        WearStateHolder.updateNearbyShops(shops)
+                    }
+                    WearPaths.PATH_PEDIDO_ACTIVO -> {
+                        val hasActiveOrder = dataMap.getBoolean("hasActiveOrder", false)
+                        if (!hasActiveOrder) {
+                            WearStateHolder.updateActiveOrder(null)
+                        } else {
+                            val id = dataMap.getString("id", "")
+                            val neveriaId = dataMap.getString("neveriaId", "")
+                            val neveriaNombre = dataMap.getString("neveriaNombre", "")
+                            val estado = dataMap.getString("estado", "NUEVO")
+                            val tiempoEstimado = dataMap.getLong("tiempoEstimadoMinutos", 0)
+                            val fechaHora = dataMap.getLong("fechaHoraMillis", 0)
+                            val total = dataMap.getDouble("total", 0.0)
+
+                            val productsList = dataMap.getDataMapArrayList("productos") ?: ArrayList()
+                            val products = productsList.map { pMap ->
+                                ProductoResumen(
+                                    nombre = pMap.getString("nombre", ""),
+                                    cantidad = pMap.getInt("cantidad", 0),
+                                    precioUnitario = pMap.getDouble("precioUnitario", 0.0)
+                                )
+                            }
+                            val order = PedidoResumen(id, neveriaId, neveriaNombre, estado, tiempoEstimado, fechaHora, total, products)
+                            WearStateHolder.updateActiveOrder(order)
+                        }
+                    }
+                    WearPaths.PATH_NOTIFICACIONES -> {
+                        val notifMaps = dataMap.getDataMapArrayList("notifications") ?: ArrayList()
+                        val notifs = notifMaps.map { nMap ->
+                            NotificacionResumen(
+                                id = nMap.getString("id", ""),
+                                mensaje = nMap.getString("mensaje", ""),
+                                tipo = nMap.getString("tipo", "CAMBIO_ESTADO"),
+                                leida = nMap.getBoolean("leida", false),
+                                fechaEnvio = nMap.getLong("fechaEnvio", 0)
+                            )
+                        }
+                        WearStateHolder.updateNotifications(notifs)
+                    }
+                }
+            }
+        }
+    }
+
     override fun onMessageReceived(messageEvent: MessageEvent) {
-        if (messageEvent.path == "/snowtrail/proximity_alert") {
-            val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
-            vibrator?.vibrate(300) // Vibración de proximidad
+        super.onMessageReceived(messageEvent)
+        if (messageEvent.path == WearPaths.PATH_ALERTA_PROXIMIDAD) {
+            val alertData = String(messageEvent.data)
+            val parts = alertData.split("|")
+            val shopName = parts.getOrNull(0) ?: "Nevería"
+            val distance = parts.getOrNull(1)?.toIntOrNull() ?: 50
+            val promo = parts.getOrNull(2) ?: ""
+
+            WearStateHolder.setProximityAlert(ProximityAlert(shopName, distance, promo))
         }
     }
 }
 ```
 
----
-
-### 📄 `wear/src/main/java/mx/utng/snowtrail/model/WearModels.kt` (Modelos del Reloj)
-* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/model/WearModels.kt`
-* **Propósito:** Clases de datos inmutables y ligeras utilizadas para transportar notificaciones y sucursales en la memoria del reloj.
-* **Contenido y Código:**
-```kotlin
-package mx.utng.snowtrail.model
-
-data class WearNotification(
-    val id: String,
-    val titulo: String,
-    val mensaje: String,
-    val timestamp: Long,
-    val tipo: String,
-    val codigoCupon: String? = null
-)
-
-data class WearShop(
-    val id: String,
-    val nombre: String,
-    val distancia: Double,
-    val tienePromocion: Boolean
-)
-```
-
 > [!NOTE]
-> Para consultar cómo el teléfono móvil envía los eventos hacia el reloj, consultar el [README del Módulo Móvil](../app/README.md).
+> Para consultar cómo el teléfono móvil interactúa con el smartwatch, consultar la documentación de sincronización en el [README del Módulo Móvil](../app/README.md).

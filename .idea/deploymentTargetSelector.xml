@@ -15,7 +15,7 @@
       </SelectionState>
       <SelectionState runConfigName="wear">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-08-06T06:05:58.306420200Z">
+        <DropdownSelection timestamp="2026-08-12T16:31:22.743030800Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\ADMIN\.android\avd\Wear_OS_XL_Round_2.avd" />
@@ -26,10 +26,10 @@
       </SelectionState>
       <SelectionState runConfigName="tv">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-08-11T04:31:04.736849300Z">
+        <DropdownSelection timestamp="2026-08-12T05:28:21.971142900Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\ADMIN\.android\avd\Television_4K.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\ADMIN\.android\avd\Medium_Phone_API_35.avd" />
             </handle>
           </Target>
         </DropdownSelection>

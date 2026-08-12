@@ -16,37 +16,44 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.compose.material.*
-import androidx.wear.compose.material.dialog.Dialog
-import mx.utng.snowtrail.shared.WearPaths
+import com.google.android.gms.wearable.*
 import mx.utng.snowtrail.communication.WearCommunicationManager
 import mx.utng.snowtrail.model.*
-import com.google.android.gms.wearable.*
+import mx.utng.snowtrail.presentation.dialogs.ProximityAlertDialog
+import mx.utng.snowtrail.presentation.screens.NearbyShopsScreen
+import mx.utng.snowtrail.presentation.screens.NotificationDetailScreen
+import mx.utng.snowtrail.presentation.screens.NotificationTrayScreen
+import mx.utng.snowtrail.presentation.screens.OrderStatusScreen
 import mx.utng.snowtrail.service.WearStateHolder
+import mx.utng.snowtrail.shared.WearPaths
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Actividad Principal y Orquestador de la UI para Wear OS (Smartwatch).
+ * Maneja el ciclo de vida, escuchadores de sincronización en segundo plano con DataClient,
+ * gestos de navegación y eventos de botones físicos (Botón Superior / Inferior - STEM Keys).
+ */
 class MainActivity : ComponentActivity() {
 
     private val tag = "WearMainActivity"
     private lateinit var commManager: WearCommunicationManager
     
-    // UI state trackers for physical button navigation
+    // Rastreadores de estado para navegación mediante botones físicos
     private var pagerCurrentPage = 1
     private var focusedShopIndex = 0
     private var focusedNotifIndex = 0
     
-    // Active Dialog/Notification Detail track
+    // Rastreador de diálogo / detalle de notificación activo
     private var activeDetailNotification by mutableStateOf<NotificacionResumen?>(null)
     private var isProximityAlertActive = false
 
@@ -56,7 +63,7 @@ class MainActivity : ComponentActivity() {
         
         commManager = WearCommunicationManager(this)
         
-        // Start connection checks & heartbeats
+        // Iniciar verificaciones de conexión y latidos de corazón (heartbeat)
         startHeartbeatLoop()
 
         setContent {
@@ -70,7 +77,7 @@ class MainActivity : ComponentActivity() {
             val pagerState = rememberPagerState(initialPage = 1) { 3 }
             val coroutineScope = rememberCoroutineScope()
 
-            // Foreground listener to synchronize data layer updates in real-time
+            // Escuchador en primer plano para sincronizar actualizaciones de la capa de datos en tiempo real
             DisposableEffect(Unit) {
                 val listener = DataClient.OnDataChangedListener { dataEvents ->
                     for (event in dataEvents) {
@@ -144,12 +151,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
             
-            // Sync current page with global reference for button handling
+            // Sincronizar página actual para manejo de botones físicos
             LaunchedEffect(pagerState.currentPage) {
                 pagerCurrentPage = pagerState.currentPage
             }
 
-            // Watch for proximity alerts to trigger haptic feedback and show dialog
+            // Observar alertas de proximidad para activar vibración y mostrar diálogo
             LaunchedEffect(proximityAlert) {
                 if (proximityAlert != null) {
                     isProximityAlertActive = true
@@ -159,7 +166,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Sync index clamps when list sizes change
+            // Ajustar índices si cambia el tamaño de las listas
             LaunchedEffect(nearbyShops) {
                 if (focusedShopIndex >= nearbyShops.size && nearbyShops.isNotEmpty()) {
                     focusedShopIndex = nearbyShops.size - 1
@@ -240,7 +247,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Connection Status Muted Banner
+                    // Banner de estado de conexión
                     if (!isConnected) {
                         Box(
                             modifier = Modifier
@@ -259,7 +266,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Proximity Alert Popup / Modal
+                    // Diálogo emergente de alerta de proximidad
                     proximityAlert?.let { alert ->
                         ProximityAlertDialog(
                             alert = alert,
@@ -284,19 +291,19 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Intercepts Wear OS Physical Button events (Stem Keys).
-     * Button 1 (Top Button): Primary action, accept state, scroll up.
-     * Button 2 (Bottom Button): Secondary action, postpone/cancel, toggle favorite, scroll down.
+     * Intercepta eventos de botones físicos de Wear OS (Teclas STEM).
+     * Botón 1 (Superior): Acción principal, aceptar estado, desplazar arriba.
+     * Botón 2 (Inferior): Acción secundaria, posponer/cancelar, alternar favorito, desplazar abajo.
      */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         Log.d(tag, "Físico onKeyDown: KeyCode = $keyCode")
         
         when (keyCode) {
-            KeyEvent.KEYCODE_STEM_1 -> { // TOP BUTTON
+            KeyEvent.KEYCODE_STEM_1 -> { // BOTÓN SUPERIOR
                 handleTopButtonAction()
                 return true
             }
-            KeyEvent.KEYCODE_STEM_2 -> { // BOTTOM BUTTON
+            KeyEvent.KEYCODE_STEM_2 -> { // BOTÓN INFERIOR
                 handleBottomButtonAction()
                 return true
             }
@@ -305,18 +312,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleTopButtonAction() {
-        // Case 1: Proximity alert is active on screen
+        // Caso 1: Alerta de proximidad activa en pantalla
         if (isProximityAlertActive) {
             val alert = WearStateHolder.proximityAlert.value
             if (alert != null) {
-                // Confirm proximity: Open nearby shops list
                 WearStateHolder.clearProximityAlert()
                 Toast.makeText(this, "Abriendo tiendas cercanas...", Toast.LENGTH_SHORT).show()
             }
             return
         }
 
-        // Case 2: Notification detail modal is active
+        // Caso 2: Modal de detalle de notificación activo
         val activeNotif = activeDetailNotification
         if (activeNotif != null) {
             commManager.sendMessage(WearPaths.MSG_ABRIR_NOTIFICACION, activeNotif.id)
@@ -324,16 +330,16 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Case 3: Contextual screen behavior based on current page
+        // Caso 3: Comportamiento contextual según pantalla actual
         when (pagerCurrentPage) {
-            0 -> { // NOTIFICATIONS TRAY: Scroll Up / Focus previous item
+            0 -> { // BANDEJA DE NOTIFICACIONES: Desplazar Arriba / Mover foco a elemento anterior
                 val notifs = WearStateHolder.notifications.value
                 if (notifs.isNotEmpty()) {
                     focusedNotifIndex = (focusedNotifIndex - 1 + notifs.size) % notifs.size
                     Toast.makeText(this, "Foco: ${notifs[focusedNotifIndex].mensaje.take(15)}...", Toast.LENGTH_SHORT).show()
                 }
             }
-            1 -> { // ORDER SUMMARY: Confirm or Advance order state
+            1 -> { // RESUMEN DE PEDIDO: Confirmar o Avanzar estado del pedido
                 val order = WearStateHolder.activeOrder.value
                 if (order != null) {
                     when (order.estado) {
@@ -353,7 +359,7 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this, "Sin pedidos activos.", Toast.LENGTH_SHORT).show()
                 }
             }
-            2 -> { // NEARBY SHOPS: Select highlighted shop to open detail on mobile
+            2 -> { // NEVERÍAS CERCANAS: Seleccionar nevería enfocada para abrir detalle en el celular
                 val shops = WearStateHolder.nearbyShops.value
                 if (shops.isNotEmpty() && focusedShopIndex in shops.indices) {
                     val shop = shops[focusedShopIndex]
@@ -365,14 +371,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleBottomButtonAction() {
-        // Case 1: Proximity alert is active on screen
+        // Caso 1: Alerta de proximidad activa en pantalla
         if (isProximityAlertActive) {
-            // Dismiss proximity pop-up
             WearStateHolder.clearProximityAlert()
             return
         }
 
-        // Case 2: Notification detail modal is active
+        // Caso 2: Modal de detalle de notificación activo
         val activeNotif = activeDetailNotification
         if (activeNotif != null) {
             commManager.sendMessage(WearPaths.MSG_DESCARTAR_NOTIFICACION, activeNotif.id)
@@ -380,16 +385,16 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Case 3: Contextual screen behavior based on current page
+        // Caso 3: Comportamiento contextual según pantalla actual
         when (pagerCurrentPage) {
-            0 -> { // NOTIFICATIONS TRAY: Scroll Down / Focus next item
+            0 -> { // BANDEJA DE NOTIFICACIONES: Desplazar Abajo / Mover foco a elemento siguiente
                 val notifs = WearStateHolder.notifications.value
                 if (notifs.isNotEmpty()) {
                     focusedNotifIndex = (focusedNotifIndex + 1) % notifs.size
                     Toast.makeText(this, "Foco: ${notifs[focusedNotifIndex].mensaje.take(15)}...", Toast.LENGTH_SHORT).show()
                 }
             }
-            1 -> { // ORDER SUMMARY: Postpone or Reject order state
+            1 -> { // RESUMEN DE PEDIDO: Posponer o Rechazar estado del pedido
                 val order = WearStateHolder.activeOrder.value
                 if (order != null) {
                     when (order.estado) {
@@ -409,7 +414,7 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this, "Sin pedidos activos.", Toast.LENGTH_SHORT).show()
                 }
             }
-            2 -> { // NEARBY SHOPS: Toggle Favorite status of highlighted shop
+            2 -> { // NEVERÍAS CERCANAS: Alternar estado de Favorito de la nevería enfocada
                 val shops = WearStateHolder.nearbyShops.value
                 if (shops.isNotEmpty() && focusedShopIndex in shops.indices) {
                     val shop = shops[focusedShopIndex]
@@ -421,7 +426,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Loops checking connection and sending pings/heartbeats.
+     * Bucle de verificación de conexión y envío de latidos (heartbeat).
      */
     private fun startHeartbeatLoop() {
         lifecycleScopeLaunch {
@@ -430,14 +435,11 @@ class MainActivity : ComponentActivity() {
                 if (commManager.isConnected.value) {
                     commManager.sendHeartbeat()
                 }
-                delay(10000) // 10 seconds ping interval
+                delay(10000) // Intervalo de 10 segundos
             }
         }
     }
 
-    /**
-     * Helper extension to run async inside lifecycleScope.
-     */
     private fun lifecycleScopeLaunch(block: suspend () -> Unit) {
         lifecycleScope.launch {
             block()
@@ -445,7 +447,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Triggers short haptic vibration for notifications/alerts.
+     * Activa retroalimentación háptica (vibración corta) para notificaciones/alertas.
      */
     private fun triggerHapticFeedback() {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -464,83 +466,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-/**
- * Proximity Alert Modal Dialog
- */
-@Composable
-fun ProximityAlertDialog(
-    alert: ProximityAlert,
-    onOpenShops: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        showDialog = true,
-        onDismissRequest = onDismiss
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(SnowTrailColors.Background)
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "¡Alerta Proximidad!",
-                    color = SnowTrailColors.Gold,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                
-                Text(
-                    text = "Nevería '${alert.shopName}' a ${alert.distanceMeters}m.",
-                    color = SnowTrailColors.TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 15.sp
-                )
-
-                if (alert.promoNote.isNotEmpty()) {
-                    Text(
-                        text = alert.promoNote,
-                        color = SnowTrailColors.PrimaryIce,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Button(
-                        onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red.copy(alpha = 0.2f)),
-                        modifier = Modifier.weight(1f).height(24.dp)
-                    ) {
-                        Text("Cerrar", fontSize = 8.sp, color = Color.Red)
-                    }
-
-                    Button(
-                        onClick = onOpenShops,
-                        colors = ButtonDefaults.buttonColors(backgroundColor = SnowTrailColors.PrimaryIce.copy(alpha = 0.2f)),
-                        modifier = Modifier.weight(1f).height(24.dp)
-                    ) {
-                        Text("Ver", fontSize = 8.sp, color = SnowTrailColors.PrimaryIce)
-                    }
-                }
-            }
-        }
-    }
-}
-

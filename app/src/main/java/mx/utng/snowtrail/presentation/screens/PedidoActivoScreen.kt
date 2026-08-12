@@ -18,7 +18,7 @@ import java.util.Locale
 
 /**
  * Pantalla de Seguimiento de Pedido Activo (UI Layer).
- * Muestra el desglose del ticket y permite la simulación de estados.
+ * Muestra el desglose del ticket y permite ver los estados.
  */
 @Composable
 fun PedidoActivoScreen(
