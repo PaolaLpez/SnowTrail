@@ -25,7 +25,8 @@ graph TD
 
 ### 📄 `gradle/libs.versions.toml` (Version Catalog Centralizado)
 * **Ubicación:** `gradle/libs.versions.toml`
-* **Propósito:** Catálogo centralizado que unifica las versiones, dependencias y plugins del módulo de Android TV con el resto de plataformas.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Define de forma centralizada las versiones del compilador y librerías de UI para mantener sincronizado el módulo de Android TV con el resto de plataformas.
+* **💻 Explicación Técnica de Código:** Archivo de configuración Version Catalog que especifica versiones de AGP (9.2.1), Kotlin (2.2.10), Compose BOM (2024.09.00) y dependencias de Jetpack Compose.
 * **Contenido y Código Completo:**
 ```toml
 [versions]
@@ -73,7 +74,8 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 
 ### 📄 `tv/build.gradle.kts` (Build Script del Módulo TV)
 * **Ubicación:** `tv/build.gradle.kts`
-* **Propósito:** Configura la compilación para Android TV con Jetpack Compose y dependencias Material 3.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Configura la compilación específica para pantallas de alta resolución (1080p / 4K) y añade las dependencias de Compose y Material 3 para Android TV.
+* **💻 Explicación Técnica de Código:** `compileSdk = 36`, `minSdk = 26`, vinculación con `:shared` e inclusión de `material3`, `activity-compose` y `material-icons-extended`.
 * **Contenido y Código Completo:**
 ```kotlin
 plugins {
@@ -141,17 +143,16 @@ dependencies {
 
 ### 📄 `tv/src/main/AndroidManifest.xml` (Manifiesto de Android TV)
 * **Ubicación:** `tv/src/main/AndroidManifest.xml`
-* **Propósito:** Configura los metadatos de Android Leanback para TV, banner oficial y permisos de socket TCP.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Declara la aplicación para televisores inteligentes (Leanback Launcher), definiendo la banner oficial en el menú de aplicaciones de la TV y fijando la orientación horizontal (*landscape*).
+* **💻 Explicación Técnica de Código:** Declara `<uses-feature android:name="android.software.leanback" android:required="true" />`, permisos de red `INTERNET` y la categoría de lanzamiento `android.intent.category.LEANBACK_LAUNCHER`.
 * **Contenido y Código:**
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Requerimientos exclusivos para Android TV -->
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
-    <!-- Permisos de red para abrir el socket de escucha TCP en el puerto 9090 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
@@ -185,7 +186,8 @@ dependencies {
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/theme/TvThemeColors.kt` (Tokens de Color TV)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/theme/TvThemeColors.kt`
-* **Propósito:** Define los tokens de color pastel del sistema visual de Android TV para mantener coherencia visual con el módulo móvil.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Define la gama de colores pastel optimizados para la pantalla de mostrador: vainilla suave, verde menta, rosa fresa, dorado y chocolate cacao.
+* **💻 Explicación Técnica de Código:** Objeto de constantes `TvThemeColors` con colores `Color(0xFF...)` para consumo uniforme en Compose para Android TV.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv.theme
@@ -202,7 +204,6 @@ object TvThemeColors {
     val GoldText = Color(0xFF8F6300)             // Texto dorado
     val FresaPink = Color(0xFFB52D5E)            // Rosa intenso (totales)
 
-    // Estados de pedidos
     val AceptadoGreen = Color(0xFF81C784)        // Verde para Aceptar
     val PospuestoYellow = Color(0xFFFFD54F)      // Amarillo para Posponer
     val RechazadoRed = Color(0xFFE57373)         // Rojo para Rechazar
@@ -216,7 +217,8 @@ object TvThemeColors {
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/screens/PromotionsTvScreen.kt` (Carrusel de Promociones)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/screens/PromotionsTvScreen.kt`
-* **Propósito:** Pantalla principal de TV que muestra un carrusel con auto-desplazamiento cada **4 segundos** de las promociones activas. Soporta navegación con control remoto mediante `FocusRequester`.
+* **🎨 ¿Qué se ve en Pantalla?:** Se observa la marquesina publicitaria principal de la heladería para exhibir en mostrador. Presenta un carrusel dinámico de 3 tarjetas de promociones con auto-desplazamiento cada 4 segundos, el nombre de la sucursal activa ("LA NIEVERÍA PASTEL"), emoticones de helados y un botón destacado "🔄 ACTUALIZAR" interactivo con control remoto D-Pad.
+* **💻 Explicación Técnica de Código:** `PromotionsTvScreen` utiliza un bucle corrutina `LaunchedEffect` con `delay(4000L)` para desplazar `currentIndex`. Soporta el control remoto de Android TV solicitando el foco mediante `FocusRequester.requestFocus()` y navega hacia pedidos con `onNavigateToOrders`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv.screens
@@ -257,7 +259,6 @@ fun PromotionsTvScreen(
     var currentIndex by remember { mutableIntStateOf(0) }
     val focusRequester = remember { FocusRequester() }
 
-    // Solicitar foco al iniciar para soportar control remoto de TV
     LaunchedEffect(Unit) {
         try {
             delay(100L)
@@ -265,7 +266,6 @@ fun PromotionsTvScreen(
         } catch (e: Exception) { e.printStackTrace() }
     }
 
-    // Auto-scroll del carrusel de promociones cada 4 segundos
     LaunchedEffect(promotions) {
         if (promotions.isNotEmpty()) {
             while (true) {
@@ -284,13 +284,11 @@ fun PromotionsTvScreen(
             .padding(24.dp)
             .clickable { onNavigateToOrders() }
     ) {
-        // Decoración de fondo semitransparente
         Text("🍓", fontSize = 48.sp, modifier = Modifier.align(Alignment.TopEnd).padding(end = 120.dp, top = 20.dp).alpha(0.18f))
         Text("🍦", fontSize = 48.sp, modifier = Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp).alpha(0.18f))
         Text("🍨", fontSize = 48.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 40.dp).alpha(0.18f))
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header con nombre de heladería activa
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Box(modifier = Modifier.size(60.dp).background(Color.White, CircleShape).border(BorderStroke(1.5.dp, TvThemeColors.PinkBorder), CircleShape), contentAlignment = Alignment.Center) {
@@ -311,7 +309,6 @@ fun PromotionsTvScreen(
             Text("OPCIÓN DE PROMOCIONES", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Carrusel de tarjetas: izquierda (previa) - centro (activa) - derecha (siguiente)
             Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 if (promotions.isNotEmpty()) {
                     for (i in -1..1) {
@@ -357,9 +354,10 @@ fun PromotionsTvScreen(
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/screens/OrdersTvScreen.kt` (Gestión de Pedidos)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/screens/OrdersTvScreen.kt`
-* **Propósito:** Pantalla dividida en dos columnas que muestra en tiempo real los pedidos recibidos por TCP:
-  - **Columna Izquierda:** Pedido `NUEVO` activo con botones (Aceptar / Posponer / Rechazar).
-  - **Columna Derecha:** Lista scrollable de pedidos `PENDIENTE` con botón de marcar como `ENTREGADO`.
+* **🎨 ¿Qué se ve en Pantalla?:** Pantalla dividida de monitoreo para el personal de mostrador/cocina:
+  - **Columna Izquierda (Pedidos Nuevos):** Muestra en grande el pedido recién ingresado con nombre del cliente, lista de productos y botones de acción ("✔ Aceptar", "🕒 Posponer", "❌ Rechazar").
+  - **Columna Derecha (Pedidos Pendientes):** Lista scrollable con las órdenes en preparación y botón "✔ Entregado" para liberar la cola.
+* **💻 Explicación Técnica de Código:** `OrdersTvScreen` filtra la lista `orders` según `estado == "NUEVO"` o `"PENDIENTE"`. Utiliza `LazyColumn` en el panel derecho y notifica la actualización mediante `onUpdateOrder(id, nuevoEstado)`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv.screens
@@ -407,7 +405,6 @@ fun OrdersTvScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(TvThemeColors.VanillaBackground).padding(24.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Box(modifier = Modifier.size(50.dp).background(Color.White, CircleShape).border(BorderStroke(1.5.dp, TvThemeColors.PinkBorder), CircleShape), contentAlignment = Alignment.Center) {
@@ -423,9 +420,7 @@ fun OrdersTvScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Vista dividida
             Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                // Columna Izquierda: Pedido NUEVO activo
                 Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Text("Pedidos Nuevos", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, modifier = Modifier.padding(bottom = 12.dp))
                     Box(modifier = Modifier.weight(1f).fillMaxWidth().background(TvThemeColors.MintGreen.copy(alpha = 0.5f), RoundedCornerShape(16.dp)).border(BorderStroke(1.5.dp, TvThemeColors.MintGreen), RoundedCornerShape(16.dp)).padding(16.dp)) {
@@ -459,7 +454,6 @@ fun OrdersTvScreen(
                     }
                 }
 
-                // Columna Derecha: Cola de pedidos PENDIENTES
                 Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Text("Pendientes", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, modifier = Modifier.padding(bottom = 12.dp))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -501,7 +495,8 @@ fun OrdersTvScreen(
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt` (Orquestador Android TV)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt`
-* **Propósito:** Actividad principal limpia y desacoplada. Gestiona el servidor TCP, procesa comandos del móvil y delega la UI a las pantallas especializadas.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Actividad contenedora que conmuta en pantalla entre el carrusel de promociones y la cola de pedidos. Procesa silenciosamente los eventos recibidos por red.
+* **💻 Explicación Técnica de Código:** Inicia una corrutina en `Dispatchers.IO` para escuchar conexiones de `ServerSocket(9090)`. Parsea comandos `SELECT_SHOP:`, `ADD_PROMO:` y `ADD_ORDER:`, actualiza la base de datos `SnowTrailRepository` y refresca el estado Compose.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv
@@ -547,7 +542,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         repository = SnowTrailRepository(applicationContext)
 
-        // Servidor TCP en segundo plano (Puerto 9090)
         serverJob = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             var serverSocket: java.net.ServerSocket? = null
             try {
@@ -576,7 +570,6 @@ class MainActivity : ComponentActivity() {
                 var orders by remember { mutableStateOf(emptyList<TvOrder>()) }
                 var selectedShopId by remember { mutableStateOf<String?>("nev_los_abuelos") }
 
-                // Procesar mensajes TCP del móvil
                 DisposableEffect(Unit) {
                     onSocketMessageReceived = { msg ->
                         try {
@@ -647,9 +640,6 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
-> [!NOTE]
-> Para consultar cómo el teléfono móvil envía los pedidos por sockets hacia la TV, consultar el [README del Módulo Móvil](../app/README.md).
-
 ---
 
 ## 🗄️ 5. Capa de Base de Datos (`tv/database/`)
@@ -658,7 +648,8 @@ class MainActivity : ComponentActivity() {
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/database/DatabaseHelper.kt` (Esquema SQLite v7 TV)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/database/DatabaseHelper.kt`
-* **Propósito:** Gestor de base de datos SQLite para Android TV (`DATABASE_VERSION = 7`). Inicializa y pre-carga las **50 promociones únicas (5 para cada una de las 10 heladerías de Dolores Hidalgo)** y almacena los pedidos recibidos por red.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Pre-carga y conserva 50 promociones únicas (5 por cada una de las 10 neverías de Dolores Hidalgo) y almacena los pedidos recibidos vía TCP.
+* **💻 Explicación Técnica de Código:** `SQLiteOpenHelper` en versión 7 con tablas `promotions` y `orders`. Ejecuta `seedPromotions(db)` en `onCreate`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv.database
@@ -698,7 +689,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         seedPromotions(db)
     }
 
-    // Seeding masivo de 50 promociones únicas (5 por cada una de las 10 neverías)
     private fun seedPromotions(db: SQLiteDatabase) { /* ... 50 inserciones ... */ }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -713,7 +703,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/database/SnowTrailRepository.kt` (Repositorio de TV)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/database/SnowTrailRepository.kt`
-* **Propósito:** Capa de datos de Android TV. Define los modelos `TvPromotion` y `TvOrder`, y expone métodos para persistir, consultar y actualizar pedidos y promociones.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Abstracción para guardar nuevas promociones y pedidos recibidos, consultar listas activas y actualizar estatus.
+* **💻 Explicación Técnica de Código:** Provee data classes `TvPromotion` y `TvOrder`. Ejecuta consultas `rawQuery` e inserciones transaccionales `insertWithOnConflict`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv.database

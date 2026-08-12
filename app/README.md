@@ -21,7 +21,8 @@ graph TD
 
 ### 📄 `gradle/libs.versions.toml` (Version Catalog Centralizado)
 * **Ubicación:** `gradle/libs.versions.toml`
-* **Propósito:** Catálogo centralizado que unifica las versiones, dependencias y plugins entre los módulos `:app`, `:wear` y `:tv`, asegurando compatibilidad binaria y evitando conflictos de versiones.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Es el archivo de configuración central de versiones del proyecto. No tiene pantalla visual, pero garantiza que todas las librerías de UI, íconos y servicios funcionen en armonía.
+* **💻 Explicación Técnica de Código:** Catálogo centralizado que unifica las versiones, dependencias y plugins entre los módulos `:app`, `:wear` y `:tv`, asegurando compatibilidad binaria y evitando conflictos de versiones.
 * **Contenido y Código Completo:**
 ```toml
 [versions]
@@ -72,7 +73,8 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 
 ### 📄 `app/build.gradle.kts` (Build Script del Módulo Móvil)
 * **Ubicación:** `app/build.gradle.kts`
-* **Propósito:** Configura el SDK de compilación (Android 36), Java 17, soporte de Jetpack Compose y las librerías de interfaz, red y base de datos para el teléfono.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Define las características de compilación del módulo del teléfono, empaquetado Compose, versión de SDK objetivo (36) y la vinculación con el módulo `:shared`.
+* **💻 Explicación Técnica de Código:** Configura `compileSdk = 36`, `minSdk = 26`, habilita `buildFeatures { compose = true }`, Java 17 y declara las dependencias de Material 3, Room, Firebase Firestore y Play Services Wearable.
 * **Contenido y Código Completo:**
 ```kotlin
 plugins {
@@ -148,18 +150,17 @@ dependencies {
 
 ### 📄 `app/src/main/AndroidManifest.xml` (Manifiesto de la Aplicación)
 * **Ubicación:** `app/src/main/AndroidManifest.xml`
-* **Propósito:** Declara los permisos de red, geolocalización, la actividad principal `MainActivity` y el servicio en segundo plano `WearSyncService`.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Registra la aplicación en el sistema Android, definiendo el nombre de la app, el ícono launcher en el menú del teléfono y declarando los permisos requeridos.
+* **💻 Explicación Técnica de Código:** Declara permisos de red (`INTERNET`, `ACCESS_NETWORK_STATE`), permisos de geolocalización GPS (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`), la actividad inicial `.MainActivity` y el servicio `.service.WearSyncService`.
 * **Contenido y Código:**
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permisos de red e Internet para Positionstack y Sockets TCP -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- Permisos de geolocalización para simulación y GPS real -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -181,7 +182,6 @@ dependencies {
             </intent-filter>
         </activity>
         
-        <!-- Servicio de enlace con Google Play Services Wearable Data Layer -->
         <service
             android:name=".service.WearSyncService"
             android:exported="true">
@@ -195,13 +195,14 @@ dependencies {
 
 ---
 
-### 🎨 4. Capa de Presentación Modularizada (`presentation/`)
+## 🎨 4. Capa de Presentación Modularizada (`presentation/`)
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/theme/Color.kt` (Sistema de Diseño Pastel)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/theme/Color.kt` (Sistema de Diseño Pastel)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/theme/Color.kt`
-* **Propósito:** Define los tokens de color del sistema visual pastel inspirado en helados artesanales: fresa, vainilla, menta, durazno, lavanda, miel y cacao.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Define la paleta cromática pastel de la app inspirada en sabores artesanales (fresa, vainilla, menta, durazno, miel y cacao). Controla visualmente los colores de botones, tarjetas, fondos y cápsulas de estado.
+* **💻 Explicación Técnica de Código:** Objeto estático `MobileThemeColors` que almacena constantes `Color` inmutables de Jetpack Compose (`Color(0xFF...)`) para consumo centralizado en componentes visuales.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation.theme
@@ -254,9 +255,10 @@ object MobileThemeColors {
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/theme/Theme.kt` (Tema Material 3)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/theme/Theme.kt` (Tema Material 3)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/theme/Theme.kt`
-* **Propósito:** Aplica el contenedor `MaterialTheme` de Material 3 con el esquema de colores de la app móvil.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Aplica el tema visual unificado a toda la aplicación del smartphone, garantizando que los fondos sean crema vainilla, los botones rosas fresa y los acentos verdes menta.
+* **💻 Explicación Técnica de Código:** Función `@Composable fun SnowTrailTheme` que encapsula `MaterialTheme` con `lightColorScheme(...)` inyectando los tokens de `MobileThemeColors`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation.theme
@@ -283,9 +285,10 @@ fun SnowTrailTheme(content: @Composable () -> Unit) {
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/NeveriasScreen.kt` (Explorador de Neverías)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/NeveriasScreen.kt` (Explorador de Neverías)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/NeveriasScreen.kt`
-* **Propósito:** Muestra el listado de heladerías geolocalizadas con cálculo de distancia, insignias de promociones y filtro reactivo entre *Todas* y *⭐ Favoritas*.
+* **🎨 ¿Qué se ve en Pantalla?:** Se observa la lista de sucursales de neverías con su nombre, icono de helado, distancia en metros y un botón de estrella `⭐` para marcar o desmarcar como favorita. En la parte superior hay un chip de filtro para alternar entre "Ver Todas" y "⭐ Favoritas".
+* **💻 Explicación Técnica de Código:** Composable que recibe `shops: List<MockShop>` y filtra reactivamente mediante `if (showFavoritesOnly) shops.filter { it.esFavorita } else shops`. Utiliza `LazyColumn` con `Card` redondeadas e emite el evento `onToggleFavorite` al presionar la estrella.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -398,9 +401,10 @@ fun NeveriasScreen(
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/CatalogoScreen.kt` (Catálogo y Carrito)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/CatalogoScreen.kt` (Catálogo y Carrito)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/CatalogoScreen.kt`
-* **Propósito:** Despliega el catálogo de nieves artesanales, permitiendo agregar productos al carrito reactivo y confirmar el pedido con cálculo automático de totales.
+* **🎨 ¿Qué se ve en Pantalla?:** Despliega el menú de especialidades de helados y nieves artesanales con sus precios individuales en MXN, botones verdes de "Agregar" al carrito y un botón destacado rosa en el pie de página para "Confirmar y Enviar Pedido".
+* **💻 Explicación Técnica de Código:** Muestra elementos del catálogo dinámico mediante `LazyColumn`. Al presionar "Agregar" invoca el callback `onAddToCart` actualizando el estado de la orden, y el botón inferior dispara `onCheckout` para procesar la transacción.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -468,9 +472,10 @@ fun CatalogoScreen(
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/PedidoActivoScreen.kt` (Ticket y Seguimiento)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/PedidoActivoScreen.kt` (Ticket y Seguimiento)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/PedidoActivoScreen.kt`
-* **Propósito:** Muestra el ticket de compra, tiempo estimado de entrega y botones para simular las transiciones de estado sincronizadas con el reloj inteligente.
+* **🎨 ¿Qué se ve en Pantalla?:** Se muestra la tarjeta de ticket de compra con el número de folio `#ID`, el nombre de la sucursal, el tiempo estimado de preparación en minutos y el precio total. En la parte inferior incluye botones de simulación de estado: "Aceptar", "Entregar" y "Posponer".
+* **💻 Explicación Técnica de Código:** Evalúa la presencia de `MockOrder`. Si existe, renderiza los datos en una `Card` y notifica los cambios de estado mediante `onSimulateProgress(...)`, disparando la sincronización hacia Wear OS y Android TV.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -535,9 +540,10 @@ fun PedidoActivoScreen(
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/AdminPanelScreen.kt` (Panel de Administración)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/AdminPanelScreen.kt` (Panel de Gestión ADMIN)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/AdminPanelScreen.kt`
-* **Propósito:** Proporciona la cuadrícula de botones 2x2 para cambiar los estados de los pedidos en cocina (*Aceptar*, *Posponer*, *Entregar*, *Rechazar*).
+* **🎨 ¿Qué se ve en Pantalla?:** Vista orientada al administrador / personal de mostrador. Muestra una cuadrícula de 4 botones de acción rápida para gestionar el pedido en preparación: "✅ Aceptar", "⏳ Posponer", "🎉 Entregar" y "❌ Rechazar".
+* **💻 Explicación Técnica de Código:** Contenedor Compose en cuadrícula 2x2. Invoca el callback `onUpdateState(nuevoEstado)` al presionar cualquiera de los 4 botones, actualizando la máquina de estados local e informando a la TV via Socket.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -591,9 +597,10 @@ fun AdminPanelScreen(
 
 ---
 
-#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt` (Orquestador Desacoplado)
+### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt` (Orquestador Desacoplado)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt`
-* **Propósito:** Actividad de presentación que orquesta el `Scaffold`, la barra superior con selector de roles (`CLIENTE` / `ADMIN`), la barra de navegación inferior y delega a las pantallas hijas.
+* **🎨 ¿Qué se ve en Pantalla?:** Estructura base de la app. Incluye la barra superior con el selector de rol (`CLIENTE` / `ADMIN`), la barra de navegación inferior con pestañas (Neverías, Catálogo, Pedido Activo, Admin) y el contenedor principal donde se intercambian las pantallas.
+* **💻 Explicación Técnica de Código:** `ComponentActivity` principal. Instancia `SnowTrailRepository`, envuelve la UI en `SnowTrailTheme` y delega la navegación declarativa a `SnowTrailMainScreen`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.presentation
@@ -653,13 +660,14 @@ class MainActivity : ComponentActivity() {
 
 ---
 
-### 🗄️ 5. Capa de Base de Datos y Persistencia (`database/`)
+## 🗄️ 5. Capa de Base de Datos y Persistencia (`database/`)
 
 ---
 
 ### 📄 `app/src/main/java/mx/utng/snowtrail/database/DatabaseHelper.kt` (Esquema SQLite v5)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/database/DatabaseHelper.kt`
-* **Propósito:** Administrador de base de datos local SQLite (`DATABASE_VERSION = 5`). Define las tablas `users`, `shops`, `promotions`, `orders` (con la columna `user_email`), `order_products` y `user_favorites`.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Componente interno de almacenamiento. Garantiza que aunque se apague el teléfono, las neverías favoritas, usuarios registrados y pedidos antiguos se conserven intactos.
+* **💻 Explicación Técnica de Código:** Hereda de `SQLiteOpenHelper`. Administra el esquema SQLite en versión 5 con las tablas `users`, `shops`, `orders`, `order_products`, `notifications`, `promotions` y `user_favorites`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.database
@@ -674,7 +682,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val DATABASE_NAME = "snowtrail.db"
         private const val DATABASE_VERSION = 5
 
-        // Tablas
         const val TABLE_USERS = "users"
         const val TABLE_SHOPS = "shops"
         const val TABLE_ORDERS = "orders"
@@ -683,7 +690,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val TABLE_PROMOTIONS = "promotions"
         const val TABLE_USER_FAVORITES = "user_favorites"
 
-        // Columnas
         const val USER_EMAIL = "email"
         const val USER_PASSWORD = "password"
         const val USER_ROLE = "role"
@@ -756,7 +762,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
 ### 📄 `app/src/main/java/mx/utng/snowtrail/database/SnowTrailRepository.kt` (Capa de Repositorio)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/database/SnowTrailRepository.kt`
-* **Propósito:** Abstracción de acceso a datos. Maneja inserciones transaccionales, consultas de pedidos, favoritos independientes por usuario y máquina de estados.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Gestiona las operaciones de persistencia (guardar pedidos, marcar favoritos por correo de usuario, actualizar estatus).
+* **💻 Explicación Técnica de Código:** Encapsula transacciones `db.beginTransaction()` y consultas `rawQuery(...)`, devolviendo listas fuertemente tipadas (`List<MockShop>`, `List<MockOrder>`).
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.database
@@ -858,13 +865,14 @@ class SnowTrailRepository(context: Context) {
 
 ---
 
-### ⚙️ 6. Capa de Servicios y Modelos (`service/`)
+## ⚙️ 6. Capa de Servicios y Comunicación (`service/` & `communication/`)
 
 ---
 
 ### 📄 `app/src/main/java/mx/utng/snowtrail/service/WearSyncService.kt` (Modelos y Servicio Wear)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/service/WearSyncService.kt`
-* **Propósito:** Define los modelos de datos compartidos (`MockOrder`, `MockNotification`, `MockShop`, `MockPromotion`, `MockProductLine`) y el servicio de difusión para sincronización con Wear OS.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Sincroniza en segundo plano las notificaciones, alertas de proximidad y pedidos con el reloj inteligente Wear OS.
+* **💻 Explicación Técnica de Código:** Declara las clases `MockOrder`, `MockNotification`, `MockShop`, `MockPromotion` y `WearSyncService` heredando de `WearableListenerService`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.service
@@ -910,7 +918,7 @@ data class MockShop(
 data class MockNotification(
     val id: String,
     val mensaje: String,
-    val tipo: String, // CAMBIO_ESTADO, PROMOCION, PROXIMIDAD
+    val tipo: String,
     var leida: Boolean,
     val fechaEnvio: Long
 )
@@ -940,5 +948,44 @@ class WearSyncService : WearableListenerService() {
 }
 ```
 
+---
+
+### 📄 `app/src/main/java/mx/utng/snowtrail/communication/TvSocketClient.kt` (Cliente de Sockets TCP)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/communication/TvSocketClient.kt`
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Motor de red invisible. Al seleccionar una sucursal o enviar un pedido desde el teléfono, transmite inmediatamente la instrucción hacia la Android TV para actualizar la pantalla gigante de mostrador.
+* **💻 Explicación Técnica de Código:** `object TvSocketClient` que abre un Socket TCP hacia `tvIpAddress:9090` en `Dispatchers.IO` utilizando `OutputStreamWriter` en formato UTF-8.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.communication
+
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.OutputStreamWriter
+import java.net.Socket
+import java.nio.charset.StandardCharsets
+
+object TvSocketClient {
+    private const val TAG = "TvSocketClient"
+    var tvIpAddress: String = "192.168.1.100"
+    var tvPort: Int = 9090
+
+    suspend fun sendCommandToTv(command: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Socket(tvIpAddress, tvPort).use { socket ->
+                val writer = OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
+                writer.write(command + "\n")
+                writer.flush()
+            }
+            Log.d(TAG, "Comando enviado exitosamente a la TV: $command")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al enviar comando a la TV ($tvIpAddress:$tvPort)", e)
+            false
+        }
+    }
+}
+```
+
 > [!TIP]
-> Para conocer el manejo de la bandeja de notificaciones con efecto marquesina y cupones de descuento en el reloj, consultar el [README de Wear OS](../wear/README.md).
+> Para conocer el funcionamiento del carrusel de promociones en pantalla grande y el servidor TCP de recepción, consultar el [README de Android TV](../tv/README.md).

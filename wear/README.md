@@ -27,7 +27,8 @@ graph TD
 
 ### 📄 `gradle/libs.versions.toml` (Version Catalog Centralizado)
 * **Ubicación:** `gradle/libs.versions.toml`
-* **Propósito:** Catálogo centralizado que unifica las versiones, dependencias y plugins de Wear OS con el resto del proyecto.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Define las versiones de las librerías específicas de Wear OS (Wear Compose, Play Services Wearable) para garantizar compatibilidad con el smartwatch.
+* **💻 Explicación Técnica de Código:** Version Catalog centralizado con las versiones de `playServicesWearable`, `composeMaterial3` (Wear) y `wearToolingPreview`.
 * **Contenido y Código Completo:**
 ```toml
 [versions]
@@ -75,7 +76,8 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 
 ### 📄 `wear/build.gradle.kts` (Build Script del Módulo Smartwatch)
 * **Ubicación:** `wear/build.gradle.kts`
-* **Propósito:** Configura el SDK 36, minSdk 30 (Wear OS 3.0+), Java 17 y las librerías de interfaz táctil y física para reloj inteligente.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Configura la compilación optimizada para relojes inteligentes Wear OS 3.0+ (minSdk 30) y dependencias de sensores y botones.
+* **💻 Explicación Técnica de Código:** `compileSdk = 36`, `minSdk = 30`, dependencias `androidx.wear.compose:compose-material`, `androidx.wear:wear` y soporte para Kotlin Coroutines.
 * **Contenido y Código Completo:**
 ```kotlin
 plugins {
@@ -150,7 +152,8 @@ dependencies {
 
 ### 📄 `wear/src/main/AndroidManifest.xml` (Manifiesto de Wear OS)
 * **Ubicación:** `wear/src/main/AndroidManifest.xml`
-* **Propósito:** Configura los metadatos específicos del hardware wearable y los servicios de escucha en segundo plano.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Declara la aplicación para smartwatch autónomo, solicitando permisos de vibración háptica al recibir alertas.
+* **💻 Explicación Técnica de Código:** `<uses-feature android:name="android.hardware.type.watch" />`, permisos `WAKE_LOCK`, `VIBRATE`, metadato `standalone = true` y declaración de `.service.WearDataListenerService`.
 * **Contenido y Código Completo:**
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -200,7 +203,8 @@ dependencies {
 
 ### 📄 `wear/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt` (Orquestador Principal)
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt`
-* **Propósito:** Actúa como el orquestador central del smartwatch. Administra el ciclo de vida, la escucha de `DataClient` para recibir sincros en tiempo real, el bucle de heartbeat de conexión y la captura de eventos de hardware (Teclas STEM físicas 1 y 2).
+* **🎨 ¿Qué se ve en Pantalla?:** Es el orquestador visual de las 3 pestañas deslizables (Notificaciones, Estatus de Pedido, Neverías Cercanas). Muestra la hora del reloj en el borde superior (`TimeText`), la banner roja de "Sin conexión" si se pierde la señal y captura los clics de los botones físicos laterales del reloj (Botón Superior e Inferior).
+* **💻 Explicación Técnica de Código:** `ComponentActivity` principal. Configura `HorizontalPager`, instala `DataClient.OnDataChangedListener` para recibir sincros en tiempo real, inicia el bucle `startHeartbeatLoop()` y captura eventos de hardware en `onKeyDown(keyCode)` para teclas `KEYCODE_STEM_1` y `KEYCODE_STEM_2`.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation
@@ -649,7 +653,8 @@ class MainActivity : ComponentActivity() {
 
 ### 📄 `wear/.../presentation/theme/WearThemeColors.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/theme/WearThemeColors.kt`
-* **Propósito:** Centraliza los tokens de color optimizados para pantallas OLED oscuras del smartwatch.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Define la paleta cromática pastel optimizada para pantallas circulares OLED oscuras: fondo negro profundo para ahorro de energía, acentos en rosa helado, verde menta y dorado miel.
+* **💻 Explicación Técnica de Código:** Objeto `SnowTrailColors` con constantes `Color(0xFF...)` para consumo centralizado en las pantallas y diálogos de Wear OS.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation.theme
@@ -676,8 +681,9 @@ object SnowTrailColors {
 ---
 
 ### 📄 `wear/.../presentation/dialogs/ProximityAlertDialog.kt`
-* **Ubicación:** `wear/src/main/java/mx/utng.snowtrail/presentation/dialogs/ProximityAlertDialog.kt`
-* **Propósito:** Modal flotante que aparece al acercarse a una nevería con alerta de proximidad.
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/dialogs/ProximityAlertDialog.kt`
+* **🎨 ¿Qué se ve en Pantalla?:** Diálogo emergente que aparece al estar a menos de 100m de una heladería. Muestra el título "¡Alerta Proximidad!", el nombre de la tienda, la distancia exacta y dos botones de acción rápida ("Cerrar" y "Ver").
+* **💻 Explicación Técnica de Código:** Utiliza `Dialog(showDialog = true)` de Wear Compose. Activa la vibración háptica al desplegarse y dispara `onOpenShops` o `onDismiss`.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation.dialogs
@@ -780,7 +786,8 @@ fun ProximityAlertDialog(
 
 ### 📄 `wear/.../presentation/screens/OrderStatusScreen.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/OrderStatusScreen.kt`
-* **Propósito:** Muestra el pedido activo con su estado en tiempo real y accesos rápidos a las neverías favoritas cercanas.
+* **🎨 ¿Qué se ve en Pantalla?:** Pantalla 1 del reloj. En la parte superior se observa el título "SnowTrail" con un punto verde/rojo de conexión. En el centro la tarjeta del pedido activo con el tiempo de entrega y precio total. En la parte inferior dos cajas pequeñas con las neverías favoritas más cercanas.
+* **💻 Explicación Técnica de Código:** `OrderStatusScreen` evalúa `order: PedidoResumen?`. Asigna colores dinámicos al badge según el estado (`NUEVO`, `ACEPTADO`, `POSPUESTO`, `RECHAZADO`, `ENTREGADO`) e invoca `onOrderClicked` para interactuar.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -1030,7 +1037,8 @@ fun OrderStatusScreen(
 
 ### 📄 `wear/.../presentation/screens/NearbyShopsScreen.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/NearbyShopsScreen.kt`
-* **Propósito:** Lista las nunca neverías con distancia y estado de favoritas mediante `ScalingLazyColumn`.
+* **🎨 ¿Qué se ve en Pantalla?:** Pantalla 2 del reloj. Muestra la lista de heladerías geolocalizadas con su distancia en metros o kilómetros, etiqueta dorada de "Promo" si tiene oferta y una estrella dorada si es favorita.
+* **💻 Explicación Técnica de Código:** `NearbyShopsScreen` renderiza la lista con `ScalingLazyColumn`. Aplica un borde brillante de degradado al elemento enfocado por el botón físico `focusedIndex`.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -1186,7 +1194,8 @@ fun NearbyShopsScreen(
 
 ### 📄 `wear/.../presentation/screens/NotificationTrayScreen.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/NotificationTrayScreen.kt`
-* **Propósito:** Bandeja principal de notificaciones del smartwatch con marquesina animada `basicMarquee()`.
+* **🎨 ¿Qué se ve en Pantalla?:** Pantalla 3 del reloj. Bandeja de notificaciones con texto deslizante animado (marquesina), icono según categoría (sobre para estado, megáfono para promo, pin para ubicación) y un punto verde/gris que indica si la notificación fue leída.
+* **💻 Explicación Técnica de Código:** `NotificationTrayScreen` aplica el modificador `Modifier.basicMarquee()` para que los títulos largos se deslicen de forma continua en pantallas redondas pequeñas.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -1337,7 +1346,8 @@ fun NotificationTrayScreen(
 
 ### 📄 `wear/.../presentation/screens/NotificationDetailScreen.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/presentation/screens/NotificationDetailScreen.kt`
-* **Propósito:** Vista detallada de cupones de descuento interactivos con códigos de cupón para mostrar en caja y opciones de apertura en teléfono.
+* **🎨 ¿Qué se ve en Pantalla?:** Pantalla modal de detalle. Si la notificación es una promoción, dibuja una tarjeta estilizada con el código de cupón alfanumérico (ej: `NIEVE15`, `ICE50`), la leyenda "⚡ Vence hoy - ¡Presenta en caja!" y botones para "Ver en Celular", "Descartar" y "Regresar".
+* **💻 Explicación Técnica de Código:** `NotificationDetailScreen` genera dinámicamente un código de cupón según palabras clave en `notification.mensaje` e invoca `onConfirm` para abrir en teléfono.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.presentation.screens
@@ -1640,7 +1650,8 @@ fun NotificationDetailScreen(
 
 ### 📄 `wear/src/main/java/mx/utng/snowtrail/communication/WearCommunicationManager.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/communication/WearCommunicationManager.kt`
-* **Propósito:** Maneja el envío de comandos e interacciones desde el reloj hacia el smartphone y el monitoreo de conectividad de nodos via Google Play Services.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Encargado de enviar las respuestas táctiles del reloj (Aceptar pedido, Marcar favorito, Ver en celular) de vuelta al smartphone.
+* **💻 Explicación Técnica de Código:** `WearCommunicationManager` envía payloads por `MessageClient` a los nodos conectados de Google Play Services y simula transiciones locales si no hay celular conectado.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.communication
@@ -1774,7 +1785,8 @@ class WearCommunicationManager(private val context: Context) {
 
 ### 📄 `wear/src/main/java/mx/utng/snowtrail/service/WearDataListenerService.kt`
 * **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/service/WearDataListenerService.kt`
-* **Propósito:** Servicio en segundo plano para escuchar eventos entrantes de la capa de datos de Wearable.
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Escucha eventos en segundo plano cuando el reloj tiene la pantalla en reposo, activando la alerta de proximidad emergente al estar cerca de una nevería.
+* **💻 Explicación Técnica de Código:** Servicio `WearableListenerService` que procesa `onDataChanged` para sincro de `DataMap` y `onMessageReceived` para el path `PATH_ALERTA_PROXIMIDAD`.
 * **Contenido y Código Completo:**
 ```kotlin
 package mx.utng.snowtrail.service
@@ -1864,6 +1876,56 @@ class WearDataListenerService : WearableListenerService() {
         }
     }
 }
+```
+
+---
+
+### 📄 `wear/src/main/java/mx/utng/snowtrail/model/WearModels.kt`
+* **Ubicación:** `wear/src/main/java/mx/utng/snowtrail/model/WearModels.kt`
+* **🎨 ¿Qué se ve / Contenido Funcional?:** Modelos de datos inmutables de notificaciones, neverías, pedidos y alertas de proximidad para el reloj.
+* **💻 Explicación Técnica de Código:** Define las data classes `NeveriaResumen`, `ProductoResumen`, `PedidoResumen`, `NotificacionResumen` y `ProximityAlert`.
+* **Contenido y Código Completo:**
+```kotlin
+package mx.utng.snowtrail.model
+
+data class NeveriaResumen(
+    val id: String,
+    val nombre: String,
+    val distancia: Double,
+    val esFavorita: Boolean,
+    val tienePromocion: Boolean
+)
+
+data class ProductoResumen(
+    val nombre: String,
+    val cantidad: Int,
+    val precioUnitario: Double
+)
+
+data class PedidoResumen(
+    val id: String,
+    val neveriaId: String,
+    val neveriaNombre: String,
+    val estado: String,
+    val tiempoEstimadoMinutos: Long,
+    val fechaHoraMillis: Long,
+    val total: Double,
+    val productos: List<ProductoResumen>
+)
+
+data class NotificacionResumen(
+    val id: String,
+    val mensaje: String,
+    val tipo: String,
+    val leida: Boolean,
+    val fechaEnvio: Long
+)
+
+data class ProximityAlert(
+    val shopName: String,
+    val distanceMeters: Int,
+    val promoNote: String = ""
+)
 ```
 
 > [!NOTE]
