@@ -62,32 +62,44 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-// Creamy Pastel Ice Cream Color System
+/**
+ * Actividad Principal Móvil (Smartphone - :app).
+ * Desarrollada al 100% con Jetpack Compose y Material 3:
+ * - Gestión de Estados Reactivos (remember, mutableStateOf, mutableStateListOf).
+ * - Sistema de diseño pastel con tokens de MobileThemeColors (fresa, vainilla, menta, cacao).
+ * - Explorador de Neverías con geocodificación, mapas y filtro de favoritos independientes.
+ * - Catálogo detallado de especialidades, carrito con cálculo en vivo y ticket de compra.
+ * - Panel de Administrador con cuadrícula 2x2 para gestión de la máquina de estados finita.
+ * - Sincronización en tiempo real con Wear OS Data Layer mediante WearSyncService.
+ */
+
+// Sistema de diseño pastel y tokens de color (MobileThemeColors)
 object MobileThemeColors {
-    val OffWhiteVanilla = Color(0xFFFCFAF2)    // Warm soft vanilla cream background
-    val PureWhiteCard = Color(0xFFFFFFFF)      // Cards background
+    val OffWhiteVanilla = Color(0xFFFCFAF2)    // Fondo cálido tono crema vainilla
+    val PureWhiteCard = Color(0xFFFFFFFF)      // Fondo de tarjetas
     
-    // Pastel Accents
-    val IceCreamPink = Color(0xFFFEE1E8)       // Strawberry Pink
+    // Tonos pastel
+    val IceCreamPink = Color(0xFFFEE1E8)       // Fresa
     val PinkText = Color(0xFFB52D5E)
     
-    val IceCreamMint = Color(0xFFE2F9EE)       // Mint Green
+    val IceCreamMint = Color(0xFFE2F9EE)       // Menta
     val MintText = Color(0xFF1E6F40)
     
-    val IceCreamPeach = Color(0xFFFFEAE2)      // Warm Peach Orange
+    val IceCreamPeach = Color(0xFFFFEAE2)      // Melocotón
     val PeachText = Color(0xFFBF3E15)
     
-    val IceCreamLavender = Color(0xFFECEBFF)   // Lavender Blue
+    val IceCreamLavender = Color(0xFFECEBFF)   // Lavanda
     val LavenderText = Color(0xFF4A34AC)
     
-    val GoldPastel = Color(0xFFFFF0C2)         // Creamy Honey Yellow
+    val GoldPastel = Color(0xFFFFF0C2)         // Miel / Dorado
     val GoldText = Color(0xFF8F6300)
     val GoldBorder = Color(0xFFFFD54F)
     
-    // Cocoa Typography
-    val CocoaDarkText = Color(0xFF3E2723)      // Dark chocolate brown for main text
-    val CocoaLightText = Color(0xFF795548)     // Soft milk chocolate for secondary text
-    val CocoaMuted = Color(0xFFA1887F)         // Muted brown
+    // Tipografía Cacao
+    val CocoaDarkText = Color(0xFF3E2723)      // Marrón cacao oscuro para texto principal
+    val CocoaLightText = Color(0xFF795548)     // Chocolate con leche para texto secundario
+    val CocoaMuted = Color(0xFFA1887F)         // Tono cacao atenuado
+
     
     // Order Status Capsule Colors (Pastel-themed)
     val NuevoBg = Color(0xFFFFF9C4)

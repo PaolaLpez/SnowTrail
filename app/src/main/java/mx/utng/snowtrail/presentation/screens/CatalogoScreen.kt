@@ -1,0 +1,106 @@
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import mx.utng.snowtrail.presentation.theme.MobileThemeColors
+import mx.utng.snowtrail.service.MockProductLine
+import java.util.Locale
+
+/**
+ * Pantalla de Catálogo de Productos y Carrito de Compras (UI Layer).
+ * Presenta el menú de especialidades artesanales y cálculo de totales.
+ */
+@Composable
+fun CatalogoScreen(
+    onAddToCart: (MockProductLine) -> Unit,
+    onCheckout: () -> Unit
+) {
+    val catalog = listOf(
+        MockProductLine("Copa Helarte Suprema", 1, 95.0),
+        MockProductLine("Nieve Artesanal de Limón", 1, 45.0),
+        MockProductLine("Cono Doble Fresa y Chocolate", 1, 65.0),
+        MockProductLine("Malteada de Vainilla Cacao", 1, 80.0)
+    )
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text(
+            text = "🍨 Menú de Especialidades",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = MobileThemeColors.CocoaDarkText
+        )
+        Text(
+            text = "Selecciona tus productos favoritos para ordenar",
+            fontSize = 12.sp,
+            color = MobileThemeColors.CocoaLightText
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(catalog) { prod ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = prod.nombre,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MobileThemeColors.CocoaDarkText
+                            )
+                            Text(
+                                text = "$${String.format(Locale.US, "%.2f", prod.precioUnitario)} MXN",
+                                fontSize = 13.sp,
+                                color = MobileThemeColors.PinkText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Button(
+                            onClick = { onAddToCart(prod) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamMint),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Agregar", color = MobileThemeColors.MintText, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = onCheckout,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PinkText),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(Icons.Default.ShoppingBag, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Confirmar y Enviar Pedido", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}

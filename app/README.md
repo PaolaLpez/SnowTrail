@@ -140,20 +140,6 @@ dependencies {
 }
 ```
 
-#### 🔍 Desglose y Utilidad de las Dependencias añadidas en `:app`:
-| Dependencia Añadida | Propósito Técnico | Beneficio en la App Móvil |
-| :--- | :--- | :--- |
-| `implementation(project(":shared"))` | Módulo compartido | Comparte modelos de datos unificados entre Celular, Reloj y TV. |
-| `libs.play.services.wearable` | Wearable Data Layer | Permite al celular enviar cambios de proximidad GPS, pedidos y ofertas hacia el smartwatch. |
-| `kotlinx-coroutines-play-services` | Corrutinas asíncronas | Convierte las tareas de Play Services (`Task<T>`) en llamadas `await()` no bloqueantes en Kotlin. |
-| `firebase-firestore-ktx` | Firebase SDK | Habilita sincronización y almacenamiento cloud para órdenes y promociones en la nube. |
-| `room-runtime` y `room-ktx` | Base de datos Room | Abstracción moderna ORM sobre SQLite para consultas reactivas con corrutinas y Flow. |
-| `lifecycle-service` | Servicios en segundo plano | Permite a `WearSyncService` ejecutar tareas de fondo sincronizadas con el ciclo de vida de Android. |
-| `compose-material3:1.2.0` | Sistema de Diseño M3 | Provee tarjetas `Card`, botones `Button`, campos de texto `OutlinedTextField` y paleta de colores pastel. |
-| `material-icons-extended` | Catálogo de Íconos | Provee íconos completos (tiendas, estrellas, helados, GPS, ubicaciones, candados, etc.). |
-| `appcompat:1.6.1` | Compatibilidad Android | Asegura compatibilidad de estilos base y soporte para pantallas de diálogo y fragmentos. |
-| `core-splashscreen` | Splash Screen | Brinda la transición visual suave al abrir la app en el celular. |
-
 ---
 
 ## 📂 3. Desglose Exhaustivo de Archivos del Código Fuente
@@ -162,7 +148,7 @@ dependencies {
 
 ### 📄 `app/src/main/AndroidManifest.xml` (Manifiesto de la Aplicación)
 * **Ubicación:** `app/src/main/AndroidManifest.xml`
-* **Propósito:** Declara los permisos del sistema, actividades y servicios en segundo plano.
+* **Propósito:** Declara los permisos de red, geolocalización, la actividad principal `MainActivity` y el servicio en segundo plano `WearSyncService`.
 * **Contenido y Código:**
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -176,90 +162,232 @@ dependencies {
     <!-- Permisos de geolocalización para simulación y GPS real -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="SnowTrail Mobile"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SnowTrail"
-        tools:targetApi="31">
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
         
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.SnowTrail">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         
+        <!-- Servicio de enlace con Google Play Services Wearable Data Layer -->
         <service
             android:name=".service.WearSyncService"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
 ```
 
 ---
 
-### 📄 `app/src/main/java/mx/utng/snowtrail/MainActivity.kt` (`main` - Actividad Principal y Vistas)
-* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/MainActivity.kt`
-* **Propósito:** Punto de entrada visual que orquesta:
-  1. **Autenticación:** Formulario de Login para Cliente y Administrador.
-  2. **Vistas del Cliente:** Catálogo de neverías, `ShopDetailScreen` (detalle y carrito), `RouteNavigationScreen` (seguimiento en vivo), y mapa de Dolores Hidalgo.
-  3. **Vistas del Administrador:**
-     * `AdminDashboardTab`: CRUD de heladerías y promociones.
-     * `AdminAddTab`: Selector de 3 opciones (Nueva Nevería, Nueva Promoción, Nuevo Pedido con selector de cantidades y carrito local).
-     * `AdminOrdersHistoryTab`: Historial independiente agrupado dinámicamente por correo (`groupBy { it.userEmail }`) con badges de color y botón de vaciado de historial (`clearOrdersHistory()`).
-     * `AdminProfileTab`: Simulación de GPS y cierre de sesión.
-  4. **Transmisión de Sockets TCP (`sendToTv`):** Envío de comandos `SELECT_SHOP:<id>`, `ADD_ORDER:<datos>` y `ADD_PROMO:<datos>` hacia el puerto `9090` de la TV.
-  5. **Geocodificación con API Positionstack + Leaflet:** Consulta HTTP asíncrona acotada a Dolores Hidalgo e inyección de mapa interactivo en `WebView`.
+### 🎨 4. Capa de Presentación Modularizada (`presentation/`)
 
-* **Fragmentos Clave de Código:**
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/theme/Color.kt` (Sistema de Diseño Pastel)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/theme/Color.kt`
+* **Propósito:** Define los tokens de color del sistema visual pastel inspirado en helados artesanales: fresa, vainilla, menta, durazno, lavanda, miel y cacao.
+* **Contenido y Código:**
 ```kotlin
-// Transmisión de Sockets TCP hacia Android TV (Puerto 9090)
-fun sendToTv(message: String) {
-    CoroutineScope(Dispatchers.IO).launch {
-        try {
-            val socket = Socket()
-            socket.connect(InetSocketAddress("127.0.0.1", 9090), 1000)
-            val writer = PrintWriter(BufferedWriter(OutputStreamWriter(socket.getOutputStream())), true)
-            writer.println(message)
-            writer.flush()
-            socket.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+package mx.utng.snowtrail.presentation.theme
+
+import androidx.compose.ui.graphics.Color
+
+object MobileThemeColors {
+    val OffWhiteVanilla = Color(0xFFFCFAF2)    // Fondo cálido tono crema vainilla
+    val PureWhiteCard = Color(0xFFFFFFFF)      // Fondo de tarjetas
+    
+    // Tonos pastel
+    val IceCreamPink = Color(0xFFFEE1E8)       // Fresa
+    val PinkText = Color(0xFFB52D5E)
+    
+    val IceCreamMint = Color(0xFFE2F9EE)       // Menta
+    val MintText = Color(0xFF1E6F40)
+    
+    val IceCreamPeach = Color(0xFFFFEAE2)      // Melocotón
+    val PeachText = Color(0xFFBF3E15)
+    
+    val IceCreamLavender = Color(0xFFECEBFF)   // Lavanda
+    val LavenderText = Color(0xFF4A34AC)
+    
+    val GoldPastel = Color(0xFFFFF0C2)         // Miel / Dorado
+    val GoldText = Color(0xFF8F6300)
+    val GoldBorder = Color(0xFFFFD54F)
+    
+    // Tipografía Cacao
+    val CocoaDarkText = Color(0xFF3E2723)      // Marrón cacao oscuro para texto principal
+    val CocoaLightText = Color(0xFF795548)     // Chocolate con leche para texto secundario
+    val CocoaMuted = Color(0xFFA1887F)         // Tono cacao atenuado
+    
+    // Colores de cápsulas de estado de pedido
+    val NuevoBg = Color(0xFFFFF9C4)
+    val NuevoText = Color(0xFFF57F17)
+    
+    val AceptadoBg = Color(0xFFE8F5E9)
+    val AceptadoText = Color(0xFF2E7D32)
+    
+    val PospuestoBg = Color(0xFFFFE0B2)
+    val PospuestoText = Color(0xFFE65100)
+    
+    val RechazadoBg = Color(0xFFFFEBEE)
+    val RechazadoText = Color(0xFFC62828)
+    
+    val EntregadoBg = Color(0xFFE3F2FD)
+    val EntregadoText = Color(0xFF1565C0)
 }
+```
 
-// Pantalla de Historial de Pedidos Agrupados por Correo
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/theme/Theme.kt` (Tema Material 3)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/theme/Theme.kt`
+* **Propósito:** Aplica el contenedor `MaterialTheme` de Material 3 con el esquema de colores de la app móvil.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.presentation.theme
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+
 @Composable
-fun AdminOrdersHistoryTab(
-    repository: SnowTrailRepository,
-    reloadFromDb: () -> Unit
-) {
-    var allOrders by remember { mutableStateOf(emptyList<MockOrder>()) }
-    fun refreshOrders() { allOrders = repository.getAllOrders() }
-    LaunchedEffect(Unit) { refreshOrders() }
+fun SnowTrailTheme(content: @Composable () -> Unit) {
+    val colorScheme = lightColorScheme(
+        primary = MobileThemeColors.PinkText,
+        secondary = MobileThemeColors.MintText,
+        background = MobileThemeColors.OffWhiteVanilla,
+        surface = MobileThemeColors.PureWhiteCard
+    )
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        val grouped = allOrders.groupBy { it.userEmail }
-        grouped.forEach { (email, ordersGroup) ->
-            Text("👤 Usuario: $email", fontWeight = FontWeight.Bold, color = Color(0xFFEF9A9A))
-            ordersGroup.forEach { o ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Pedido: #${o.id} - ${o.estado}", fontWeight = FontWeight.Bold)
-                        Text("🏪 Nevería: ${o.neveriaNombre}")
-                        Text("🛍️ Items: " + o.productos.joinToString(", ") { "${it.cantidad}x ${it.nombre}" })
-                        Text("💵 Total: $${o.total}", color = Color(0xFFB52D5E), fontWeight = FontWeight.Bold)
+    MaterialTheme(
+        colorScheme = colorScheme,
+        content = content
+    )
+}
+```
+
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/NeveriasScreen.kt` (Explorador de Neverías)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/NeveriasScreen.kt`
+* **Propósito:** Muestra el listado de heladerías geolocalizadas con cálculo de distancia, insignias de promociones y filtro reactivo entre *Todas* y *⭐ Favoritas*.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Icecream
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import mx.utng.snowtrail.presentation.theme.MobileThemeColors
+import mx.utng.snowtrail.service.MockShop
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NeveriasScreen(
+    shops: List<MockShop>,
+    showFavoritesOnly: Boolean,
+    onToggleFilter: () -> Unit,
+    onToggleFavorite: (String) -> Unit,
+    onShopClick: (MockShop) -> Unit = {}
+) {
+    val filteredShops = if (showFavoritesOnly) shops.filter { it.esFavorita } else shops
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (showFavoritesOnly) "⭐ Sucursales Favoritas" else "🍦 Todas las Neverías",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MobileThemeColors.CocoaDarkText
+            )
+            FilterChip(
+                selected = showFavoritesOnly,
+                onClick = onToggleFilter,
+                label = { Text(if (showFavoritesOnly) "Ver Todas" else "⭐ Favoritas") }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (filteredShops.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No tienes neverías marcadas como favoritas.\n¡Toca la estrella en cualquier sucursal para guardarla!",
+                    textAlign = TextAlign.Center,
+                    color = MobileThemeColors.CocoaMuted,
+                    fontSize = 14.sp
+                )
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(filteredShops) { shop ->
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(2.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { onShopClick(shop) }
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier.size(48.dp).background(MobileThemeColors.IceCreamPink, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Icecream, contentDescription = null, tint = MobileThemeColors.PinkText)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(shop.nombre, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MobileThemeColors.CocoaDarkText)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Place, contentDescription = null, tint = MobileThemeColors.MintText, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("${shop.distancia.toInt()} m de distancia", fontSize = 12.sp, color = MobileThemeColors.CocoaLightText)
+                                }
+                            }
+                            IconButton(onClick = { onToggleFavorite(shop.id) }) {
+                                Icon(
+                                    imageVector = if (shop.esFavorita) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "Favorito",
+                                    tint = if (shop.esFavorita) MobileThemeColors.GoldBorder else MobileThemeColors.CocoaMuted
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -268,14 +396,270 @@ fun AdminOrdersHistoryTab(
 }
 ```
 
-> [!NOTE]
-> Para conocer cómo el servidor de Android TV procesa las tramas de socket recibidas (`SELECT_SHOP`, `ADD_ORDER`, `ADD_PROMO`), consultar la documentación en [README de Android TV](../tv/README.md).
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/CatalogoScreen.kt` (Catálogo y Carrito)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/CatalogoScreen.kt`
+* **Propósito:** Despliega el catálogo de nieves artesanales, permitiendo agregar productos al carrito reactivo y confirmar el pedido con cálculo automático de totales.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import mx.utng.snowtrail.presentation.theme.MobileThemeColors
+import mx.utng.snowtrail.service.MockProductLine
+import java.util.Locale
+
+@Composable
+fun CatalogoScreen(
+    onAddToCart: (MockProductLine) -> Unit,
+    onCheckout: () -> Unit
+) {
+    val catalog = listOf(
+        MockProductLine("Copa Helarte Suprema", 1, 95.0),
+        MockProductLine("Nieve Artesanal de Limón", 1, 45.0),
+        MockProductLine("Cono Doble Fresa y Chocolate", 1, 65.0),
+        MockProductLine("Malteada de Vainilla Cacao", 1, 80.0)
+    )
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("🍨 Menú de Especialidades", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MobileThemeColors.CocoaDarkText)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(catalog) { prod ->
+                Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(prod.nombre, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MobileThemeColors.CocoaDarkText)
+                            Text("$${String.format(Locale.US, "%.2f", prod.precioUnitario)} MXN", fontSize = 13.sp, color = MobileThemeColors.PinkText, fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(onClick = { onAddToCart(prod) }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamMint), shape = RoundedCornerShape(10.dp)) {
+                            Text("Agregar", color = MobileThemeColors.MintText, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(onClick = onCheckout, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PinkText), shape = RoundedCornerShape(14.dp)) {
+            Icon(Icons.Default.ShoppingBag, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Confirmar y Enviar Pedido", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}
+```
+
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/PedidoActivoScreen.kt` (Ticket y Seguimiento)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/PedidoActivoScreen.kt`
+* **Propósito:** Muestra el ticket de compra, tiempo estimado de entrega y botones para simular las transiciones de estado sincronizadas con el reloj inteligente.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import mx.utng.snowtrail.presentation.theme.MobileThemeColors
+import mx.utng.snowtrail.service.MockOrder
+import java.util.Locale
+
+@Composable
+fun PedidoActivoScreen(
+    order: MockOrder?,
+    onSimulateProgress: (String) -> Unit
+) {
+    if (order == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(64.dp), tint = MobileThemeColors.CocoaMuted)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("No hay ningún pedido activo en este momento.", color = MobileThemeColors.CocoaMuted)
+            }
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(3.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Ticket: #${order.id}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Sucursal: ${order.neveriaNombre}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Tiempo estimado: ~${order.tiempoEstimadoMinutos} minutos", fontSize = 12.sp, color = MobileThemeColors.CocoaLightText)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Total: $${String.format(Locale.US, "%.2f", order.total)} MXN", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MobileThemeColors.PinkText)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSimulateProgress("ACEPTADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.AceptadoBg), modifier = Modifier.weight(1f)) {
+                    Text("Aceptar", fontSize = 11.sp, color = MobileThemeColors.AceptadoText, fontWeight = FontWeight.Bold)
+                }
+                Button(onClick = { onSimulateProgress("ENTREGADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.EntregadoBg), modifier = Modifier.weight(1f)) {
+                    Text("Entregar", fontSize = 11.sp, color = MobileThemeColors.EntregadoText, fontWeight = FontWeight.Bold)
+                }
+                Button(onClick = { onSimulateProgress("POSPUESTO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PospuestoBg), modifier = Modifier.weight(1f)) {
+                    Text("Posponer", fontSize = 11.sp, color = MobileThemeColors.PospuestoText, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/screens/AdminPanelScreen.kt` (Panel de Administración)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/screens/AdminPanelScreen.kt`
+* **Propósito:** Proporciona la cuadrícula de botones 2x2 para cambiar los estados de los pedidos en cocina (*Aceptar*, *Posponer*, *Entregar*, *Rechazar*).
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.presentation.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import mx.utng.snowtrail.presentation.theme.MobileThemeColors
+import mx.utng.snowtrail.service.MockOrder
+
+@Composable
+fun AdminPanelScreen(
+    activeOrder: MockOrder?,
+    onUpdateState: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("🛠️ Panel de Gestión (ADMIN)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MobileThemeColors.CocoaDarkText)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (activeOrder != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { onUpdateState("ACEPTADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.AceptadoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
+                        Text("✅ Aceptar", fontWeight = FontWeight.Bold, color = MobileThemeColors.AceptadoText)
+                    }
+                    Button(onClick = { onUpdateState("POSPUESTO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PospuestoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
+                        Text("⏳ Posponer", fontWeight = FontWeight.Bold, color = MobileThemeColors.PospuestoText)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { onUpdateState("ENTREGADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.EntregadoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
+                        Text("🎉 Entregar", fontWeight = FontWeight.Bold, color = MobileThemeColors.EntregadoText)
+                    }
+                    Button(onClick = { onUpdateState("RECHAZADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.RechazadoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
+                        Text("❌ Rechazar", fontWeight = FontWeight.Bold, color = MobileThemeColors.RechazadoText)
+                    }
+                }
+            }
+        } else {
+            Text("No hay pedidos pendientes para gestionar.", color = MobileThemeColors.CocoaMuted)
+        }
+    }
+}
+```
+
+---
+
+#### 📄 `app/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt` (Orquestador Desacoplado)
+* **Ubicación:** `app/src/main/java/mx/utng/snowtrail/presentation/MainActivity.kt`
+* **Propósito:** Actividad de presentación que orquesta el `Scaffold`, la barra superior con selector de roles (`CLIENTE` / `ADMIN`), la barra de navegación inferior y delega a las pantallas hijas.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.presentation
+
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import mx.utng.snowtrail.database.SnowTrailRepository
+import mx.utng.snowtrail.presentation.screens.AdminPanelScreen
+import mx.utng.snowtrail.presentation.screens.CatalogoScreen
+import mx.utng.snowtrail.presentation.screens.NeveriasScreen
+import mx.utng.snowtrail.presentation.screens.PedidoActivoScreen
+import mx.utng.snowtrail.presentation.theme.MobileThemeColors
+import mx.utng.snowtrail.presentation.theme.SnowTrailTheme
+import mx.utng.snowtrail.service.MockOrder
+import mx.utng.snowtrail.service.MockProductLine
+import mx.utng.snowtrail.service.WearSyncService
+
+class MainActivity : ComponentActivity() {
+    private lateinit var repository: SnowTrailRepository
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        repository = SnowTrailRepository(this)
+
+        try {
+            setContent {
+                SnowTrailTheme {
+                    SnowTrailMainScreen(
+                        repository = repository,
+                        onNotifyStateChange = { action ->
+                            Toast.makeText(this, "Estado sincronizado: $action", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error al iniciar: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
+    }
+}
+```
+
+---
+
+### 🗄️ 5. Capa de Base de Datos y Persistencia (`database/`)
 
 ---
 
 ### 📄 `app/src/main/java/mx/utng/snowtrail/database/DatabaseHelper.kt` (Esquema SQLite v5)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/database/DatabaseHelper.kt`
-* **Propósito:** Administrador de base de datos local SQLite (`DATABASE_VERSION = 5`). Define las tablas `users`, `shops`, `promotions`, `orders` (con la columna `user_email`) y `order_products`.
+* **Propósito:** Administrador de base de datos local SQLite (`DATABASE_VERSION = 5`). Define las tablas `users`, `shops`, `promotions`, `orders` (con la columna `user_email`), `order_products` y `user_favorites`.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.database
@@ -285,64 +669,84 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
-    companion object {
-        const val DATABASE_NAME = "snowtrail.db"
-        const val DATABASE_VERSION = 5
 
+    companion object {
+        private const val DATABASE_NAME = "snowtrail.db"
+        private const val DATABASE_VERSION = 5
+
+        // Tablas
         const val TABLE_USERS = "users"
-        const val USER_ID = "id"
+        const val TABLE_SHOPS = "shops"
+        const val TABLE_ORDERS = "orders"
+        const val TABLE_ORDER_PRODUCTS = "order_products"
+        const val TABLE_NOTIFICATIONS = "notifications"
+        const val TABLE_PROMOTIONS = "promotions"
+        const val TABLE_USER_FAVORITES = "user_favorites"
+
+        // Columnas
         const val USER_EMAIL = "email"
         const val USER_PASSWORD = "password"
         const val USER_ROLE = "role"
 
-        const val TABLE_SHOPS = "shops"
         const val SHOP_ID = "id"
-        const val SHOP_NAME = "name"
-        const val SHOP_DISTANCE = "distance"
-        const val SHOP_IS_FAVORITE = "is_favorite"
-        const val SHOP_SCHEDULE = "schedule"
-        const val SHOP_CONTACT = "contact"
-        const val SHOP_ADDRESS = "address"
+        const val SHOP_NAME = "nombre"
+        const val SHOP_DISTANCE = "distancia"
+        const val SHOP_FAVORITE = "es_favorita"
+        const val SHOP_PROMOTION = "tiene_promocion"
+        const val SHOP_HORARIO = "horario"
+        const val SHOP_CONTACTO = "contacto"
+        const val SHOP_DIRECCION = "direccion"
 
-        const val TABLE_PROMOTIONS = "promotions"
         const val PROMO_ID = "id"
-        const val PROMO_NAME = "name"
-        const val PROMO_START = "start_date"
-        const val PROMO_END = "end_date"
-        const val PROMO_NOTE = "note"
+        const val PROMO_NAME = "nombre"
+        const val PROMO_START = "fecha_inicio"
+        const val PROMO_END = "fecha_fin"
+        const val PROMO_NOTE = "nota"
 
-        const val TABLE_ORDERS = "orders"
         const val ORDER_ID = "id"
-        const val ORDER_SHOP_ID = "shop_id"
-        const val ORDER_SHOP_NAME = "shop_name"
-        const val ORDER_STATUS = "status"
-        const val ORDER_ESTIMATED_TIME = "estimated_time"
-        const val ORDER_TIMESTAMP = "timestamp"
+        const val ORDER_SHOP_ID = "neveria_id"
+        const val ORDER_SHOP_NAME = "neveria_nombre"
+        const val ORDER_STATUS = "estado"
+        const val ORDER_ETA = "tiempo_estimado_minutos"
+        const val ORDER_TIMESTAMP = "fecha_hora_millis"
         const val ORDER_TOTAL = "total"
-        const val ORDER_USER_EMAIL = "user_email"
 
-        const val TABLE_ORDER_PRODUCTS = "order_products"
-        const val OP_ID = "id"
-        const val OP_ORDER_ID = "order_id"
-        const val OP_NAME = "name"
-        const val OP_QUANTITY = "quantity"
-        const val OP_UNIT_PRICE = "unit_price"
+        const val PROD_ID = "id"
+        const val PROD_ORDER_ID = "pedido_id"
+        const val PROD_NAME = "nombre"
+        const val PROD_QTY = "cantidad"
+        const val PROD_PRICE = "precio_unitario"
+
+        const val NOTIF_ID = "id"
+        const val NOTIF_MESSAGE = "mensaje"
+        const val NOTIF_TYPE = "tipo"
+        const val NOTIF_READ = "leida"
+        const val NOTIF_TIMESTAMP = "fecha_envio"
+
+        const val UF_USER_EMAIL = "user_email"
+        const val UF_SHOP_ID = "shop_id"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE $TABLE_USERS ($USER_ID INTEGER PRIMARY KEY AUTOINCREMENT, $USER_EMAIL TEXT UNIQUE, $USER_PASSWORD TEXT, $USER_ROLE TEXT)")
-        db.execSQL("CREATE TABLE $TABLE_SHOPS ($SHOP_ID TEXT PRIMARY KEY, $SHOP_NAME TEXT, $SHOP_DISTANCE REAL, $SHOP_IS_FAVORITE INTEGER, $SHOP_SCHEDULE TEXT, $SHOP_CONTACT TEXT, $SHOP_ADDRESS TEXT)")
+        db.execSQL("CREATE TABLE $TABLE_SHOPS ($SHOP_ID TEXT PRIMARY KEY, $SHOP_NAME TEXT, $SHOP_DISTANCE REAL, $SHOP_FAVORITE INTEGER DEFAULT 0, $SHOP_PROMOTION INTEGER DEFAULT 0, $SHOP_HORARIO TEXT, $SHOP_CONTACTO TEXT, $SHOP_DIRECCION TEXT)")
+        db.execSQL("CREATE TABLE $TABLE_ORDERS ($ORDER_ID TEXT PRIMARY KEY, $ORDER_SHOP_ID TEXT, $ORDER_SHOP_NAME TEXT, $ORDER_STATUS TEXT, $ORDER_ETA INTEGER, $ORDER_TIMESTAMP INTEGER, $ORDER_TOTAL REAL, user_email TEXT DEFAULT 'Cliente@gmail.com')")
+        db.execSQL("CREATE TABLE $TABLE_ORDER_PRODUCTS ($PROD_ID INTEGER PRIMARY KEY AUTOINCREMENT, $PROD_ORDER_ID TEXT, $PROD_NAME TEXT, $PROD_QTY INTEGER, $PROD_PRICE REAL, FOREIGN KEY($PROD_ORDER_ID) REFERENCES $TABLE_ORDERS($ORDER_ID) ON DELETE CASCADE)")
+        db.execSQL("CREATE TABLE $TABLE_NOTIFICATIONS ($NOTIF_ID TEXT PRIMARY KEY, $NOTIF_MESSAGE TEXT, $NOTIF_TYPE TEXT, $NOTIF_READ INTEGER DEFAULT 0, $NOTIF_TIMESTAMP INTEGER)")
+        db.execSQL("CREATE TABLE $TABLE_USERS ($USER_EMAIL TEXT PRIMARY KEY, $USER_PASSWORD TEXT, $USER_ROLE TEXT)")
         db.execSQL("CREATE TABLE $TABLE_PROMOTIONS ($PROMO_ID TEXT PRIMARY KEY, $PROMO_NAME TEXT, $PROMO_START TEXT, $PROMO_END TEXT, $PROMO_NOTE TEXT)")
-        db.execSQL("CREATE TABLE $TABLE_ORDERS ($ORDER_ID TEXT PRIMARY KEY, $ORDER_SHOP_ID TEXT, $ORDER_SHOP_NAME TEXT, $ORDER_STATUS TEXT, $ORDER_ESTIMATED_TIME INTEGER, $ORDER_TIMESTAMP INTEGER, $ORDER_TOTAL REAL, $ORDER_USER_EMAIL TEXT DEFAULT 'Cliente@gmail.com')")
-        db.execSQL("CREATE TABLE $TABLE_ORDER_PRODUCTS ($OP_ID INTEGER PRIMARY KEY AUTOINCREMENT, $OP_ORDER_ID TEXT, $OP_NAME TEXT, $OP_QUANTITY INTEGER, $OP_UNIT_PRICE REAL)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS $TABLE_USER_FAVORITES ($UF_USER_EMAIL TEXT, $UF_SHOP_ID TEXT, PRIMARY KEY ($UF_USER_EMAIL, $UF_SHOP_ID))")
+
+        db.execSQL("INSERT INTO $TABLE_USERS ($USER_EMAIL, $USER_PASSWORD, $USER_ROLE) VALUES ('Admin@gmail.com', 'admin123', 'ADMIN')")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         db.execSQL("DROP TABLE IF EXISTS $TABLE_USERS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_SHOPS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_PROMOTIONS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDERS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDER_PRODUCTS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDERS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_SHOPS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_NOTIFICATIONS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_PROMOTIONS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_USER_FAVORITES")
         onCreate(db)
     }
 }
@@ -352,7 +756,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
 ### 📄 `app/src/main/java/mx/utng/snowtrail/database/SnowTrailRepository.kt` (Capa de Repositorio)
 * **Ubicación:** `app/src/main/java/mx/utng/snowtrail/database/SnowTrailRepository.kt`
-* **Propósito:** Abstracción segura de acceso a datos. Maneja inserciones transaccionales, consultas de pedidos e inicialización de 50 promociones de prueba.
+* **Propósito:** Abstracción de acceso a datos. Maneja inserciones transaccionales, consultas de pedidos, favoritos independientes por usuario y máquina de estados.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.database
@@ -366,6 +770,50 @@ import mx.utng.snowtrail.service.*
 class SnowTrailRepository(context: Context) {
     private val dbHelper = DatabaseHelper(context)
 
+    fun getShops(): List<MockShop> {
+        val shops = mutableListOf<MockShop>()
+        val db = dbHelper.readableDatabase
+        val cursor: Cursor = db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_SHOPS}", null)
+        if (cursor.moveToFirst()) {
+            do {
+                val id = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.SHOP_ID))
+                val nombre = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.SHOP_NAME))
+                val distancia = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.SHOP_DISTANCE))
+                val esFavorita = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.SHOP_FAVORITE)) == 1
+                val tienePromocion = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.SHOP_PROMOTION)) == 1
+                shops.add(MockShop(id, nombre, distancia, esFavorita, tienePromocion))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return shops
+    }
+
+    fun toggleFavoriteShopForUser(userEmail: String, shopId: String): Boolean {
+        val db = dbHelper.writableDatabase
+        var isFav = false
+        try {
+            db.execSQL("CREATE TABLE IF NOT EXISTS ${DatabaseHelper.TABLE_USER_FAVORITES} (${DatabaseHelper.UF_USER_EMAIL} TEXT, ${DatabaseHelper.UF_SHOP_ID} TEXT, PRIMARY KEY (${DatabaseHelper.UF_USER_EMAIL}, ${DatabaseHelper.UF_SHOP_ID}))")
+            val cursor = db.rawQuery("SELECT 1 FROM ${DatabaseHelper.TABLE_USER_FAVORITES} WHERE ${DatabaseHelper.UF_USER_EMAIL} = ? AND ${DatabaseHelper.UF_SHOP_ID} = ?", arrayOf(userEmail, shopId))
+            val exists = cursor.moveToFirst()
+            cursor.close()
+
+            if (exists) {
+                db.delete(DatabaseHelper.TABLE_USER_FAVORITES, "${DatabaseHelper.UF_USER_EMAIL} = ? AND ${DatabaseHelper.UF_SHOP_ID} = ?", arrayOf(userEmail, shopId))
+                isFav = false
+            } else {
+                val values = ContentValues().apply {
+                    put(DatabaseHelper.UF_USER_EMAIL, userEmail)
+                    put(DatabaseHelper.UF_SHOP_ID, shopId)
+                }
+                db.insertWithOnConflict(DatabaseHelper.TABLE_USER_FAVORITES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                isFav = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return isFav
+    }
+
     fun saveOrder(order: MockOrder) {
         val db = dbHelper.writableDatabase
         db.beginTransaction()
@@ -375,20 +823,20 @@ class SnowTrailRepository(context: Context) {
                 put(DatabaseHelper.ORDER_SHOP_ID, order.neveriaId)
                 put(DatabaseHelper.ORDER_SHOP_NAME, order.neveriaNombre)
                 put(DatabaseHelper.ORDER_STATUS, order.estado)
-                put(DatabaseHelper.ORDER_ESTIMATED_TIME, order.tiempoEstimadoMinutos)
+                put(DatabaseHelper.ORDER_ETA, order.tiempoEstimadoMinutos)
                 put(DatabaseHelper.ORDER_TIMESTAMP, order.fechaHoraMillis)
                 put(DatabaseHelper.ORDER_TOTAL, order.total)
-                put(DatabaseHelper.ORDER_USER_EMAIL, order.userEmail)
+                put("user_email", order.userEmail)
             }
             db.insertWithOnConflict(DatabaseHelper.TABLE_ORDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
             
-            db.delete(DatabaseHelper.TABLE_ORDER_PRODUCTS, "${DatabaseHelper.OP_ORDER_ID} = ?", arrayOf(order.id))
-            order.productos.forEach { prod ->
+            db.delete(DatabaseHelper.TABLE_ORDER_PRODUCTS, "${DatabaseHelper.PROD_ORDER_ID} = ?", arrayOf(order.id))
+            for (prod in order.productos) {
                 val pValues = ContentValues().apply {
-                    put(DatabaseHelper.OP_ORDER_ID, order.id)
-                    put(DatabaseHelper.OP_NAME, prod.nombre)
-                    put(DatabaseHelper.OP_QUANTITY, prod.cantidad)
-                    put(DatabaseHelper.OP_UNIT_PRICE, prod.precioUnitario)
+                    put(DatabaseHelper.PROD_ORDER_ID, order.id)
+                    put(DatabaseHelper.PROD_NAME, prod.nombre)
+                    put(DatabaseHelper.PROD_QTY, prod.cantidad)
+                    put(DatabaseHelper.PROD_PRICE, prod.precioUnitario)
                 }
                 db.insert(DatabaseHelper.TABLE_ORDER_PRODUCTS, null, pValues)
             }
@@ -398,52 +846,19 @@ class SnowTrailRepository(context: Context) {
         }
     }
 
-    fun getAllOrders(): List<MockOrder> {
-        val ordersList = mutableListOf<MockOrder>()
-        val db = dbHelper.readableDatabase
-        val cursor: Cursor = db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_ORDERS} ORDER BY ${DatabaseHelper.ORDER_TIMESTAMP} DESC", null)
-        if (cursor.moveToFirst()) {
-            do {
-                val id = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_ID))
-                val shopId = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_SHOP_ID))
-                val shopName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_SHOP_NAME))
-                val status = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_STATUS))
-                val estimated = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_ESTIMATED_TIME))
-                val timestamp = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_TIMESTAMP))
-                val total = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_TOTAL))
-                val email = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_USER_EMAIL))
-
-                val prodList = mutableListOf<MockProductLine>()
-                val pCursor = db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_ORDER_PRODUCTS} WHERE ${DatabaseHelper.OP_ORDER_ID} = ?", arrayOf(id))
-                if (pCursor.moveToFirst()) {
-                    do {
-                        val pName = pCursor.getString(pCursor.getColumnIndexOrThrow(DatabaseHelper.OP_NAME))
-                        val pQty = pCursor.getInt(pCursor.getColumnIndexOrThrow(DatabaseHelper.OP_QUANTITY))
-                        val pPrice = pCursor.getDouble(pCursor.getColumnIndexOrThrow(DatabaseHelper.OP_UNIT_PRICE))
-                        prodList.add(MockProductLine(pName, pQty, pPrice))
-                    } while (pCursor.moveToNext())
-                }
-                pCursor.close()
-                ordersList.add(MockOrder(id, shopId, shopName, status, estimated, timestamp, total, prodList, email))
-            } while (cursor.moveToNext())
-        }
-        cursor.close()
-        return ordersList
-    }
-
-    fun clearOrdersHistory() {
+    fun updateOrderStatus(orderId: String, newStatus: String) {
         val db = dbHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            db.delete(DatabaseHelper.TABLE_ORDERS, null, null)
-            db.delete(DatabaseHelper.TABLE_ORDER_PRODUCTS, null, null)
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
+        val values = ContentValues().apply {
+            put(DatabaseHelper.ORDER_STATUS, newStatus)
         }
+        db.update(DatabaseHelper.TABLE_ORDERS, values, "${DatabaseHelper.ORDER_ID} = ?", arrayOf(orderId))
     }
 }
 ```
+
+---
+
+### ⚙️ 6. Capa de Servicios y Modelos (`service/`)
 
 ---
 
@@ -454,9 +869,14 @@ class SnowTrailRepository(context: Context) {
 ```kotlin
 package mx.utng.snowtrail.service
 
-import android.app.Service
 import android.content.Intent
-import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.widget.Toast
+import com.google.android.gms.wearable.*
+import mx.utng.snowtrail.shared.WearPaths
+import java.nio.charset.StandardCharsets
 
 data class MockProductLine(
     val nombre: String,
@@ -468,44 +888,55 @@ data class MockOrder(
     val id: String,
     val neveriaId: String,
     val neveriaNombre: String,
-    val estado: String,
-    val tiempoEstimadoMinutos: Int,
+    var estado: String,
+    val tiempoEstimadoMinutos: Long,
     val fechaHoraMillis: Long,
     val total: Double,
     val productos: List<MockProductLine>,
     val userEmail: String = "Cliente@gmail.com"
 )
 
-data class MockNotification(
-    val id: String,
-    val titulo: String,
-    val mensaje: String,
-    val timestamp: Long,
-    val tipo: String,
-    val neveriaId: String? = null
-)
-
 data class MockShop(
     val id: String,
     val nombre: String,
-    val distancia: Double,
-    val esFavorita: Boolean = false,
-    val tienePromocion: Boolean = false,
-    val horario: String = "10:00 AM - 9:00 PM",
-    val contacto: String = "418-123-4567",
-    val direccion: String = "Centro Histórico, Dolores Hidalgo"
+    var distancia: Double,
+    var esFavorita: Boolean,
+    val tienePromocion: Boolean,
+    val horario: String = "9:00 AM - 9:00 PM",
+    val contacto: String = "55 1234 5678, correo@neveria.com",
+    val direccion: String = "Av. Principal 123"
+)
+
+data class MockNotification(
+    val id: String,
+    val mensaje: String,
+    val tipo: String, // CAMBIO_ESTADO, PROMOCION, PROXIMIDAD
+    var leida: Boolean,
+    val fechaEnvio: Long
 )
 
 data class MockPromotion(
-    val id: String,
-    val nombre: String,
-    val fechaInicio: String,
-    val fechaFin: String,
-    val nota: String
+    val id: String = "",
+    val nombre: String = "",
+    val fechaInicio: String = "",
+    val fechaFin: String = "",
+    val nota: String = ""
 )
 
-class WearSyncService : Service() {
-    override fun onBind(intent: Intent?): IBinder? = null
+class WearSyncService : WearableListenerService() {
+    private val tag = "WearSyncService"
+    private val handler = Handler(Looper.getMainLooper())
+
+    companion object {
+        var activeOrderState: MockOrder? = null
+        val mockShops = mutableListOf<MockShop>()
+        val mockNotifications = mutableListOf<MockNotification>()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(tag, "WearSyncService iniciado en el teléfono.")
+    }
 }
 ```
 

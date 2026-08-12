@@ -10,11 +10,23 @@ import mx.utng.snowtrail.service.MockNotification
 import mx.utng.snowtrail.service.MockProductLine
 import mx.utng.snowtrail.service.MockPromotion
 
+/**
+ * Patrón Repository para abstraer las operaciones de persistencia en SQLite (Data Layer).
+ * Gestiona:
+ * - Consultas geolocalizadas del directorio de sucursales.
+ * - Tabla puente user_favorites para favoritos independientes por usuario.
+ * - Catálogo indexado de promociones y ofertas.
+ * - Control transaccional de órdenes (Cabecera-Detalle) y máquina de estados finita.
+ * - Historial y marcado de notificaciones y alertas de proximidad.
+ */
 class SnowTrailRepository(context: Context) {
 
     private val dbHelper = DatabaseHelper(context)
 
-    // --- SHOPS OPERATIONS ---
+    // ==========================================
+    // OPERACIONES DE SUCURSALES (SHOPS)
+    // ==========================================
+
 
     fun getShops(): List<MockShop> {
         val shops = mutableListOf<MockShop>()

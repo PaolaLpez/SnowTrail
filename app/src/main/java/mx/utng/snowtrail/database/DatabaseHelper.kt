@@ -4,13 +4,23 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
+/**
+ * Base de Datos y Persistencia Local Relacional (Data Layer).
+ * Gestiona el esquema SQLite local (snowtrail.db) para soporte offline y sincronización:
+ * - Tabla users: Autenticación y control de acceso por roles (CLIENTE y ADMIN).
+ * - Tabla shops: Directorio geolocalizado de sucursales con coordenadas y horarios.
+ * - Tabla user_favorites: Tabla puente (user_email, shop_id) para listas independientes.
+ * - Tabla promotions: Ofertas y promociones indexadas por heladería.
+ * - Tablas orders y order_products: Control cabecera-detalle con máquina de estados finita.
+ * - Tabla notifications: Historial de alertas y avisos de proximidad con marcas de tiempo.
+ */
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
         private const val DATABASE_NAME = "snowtrail.db"
         private const val DATABASE_VERSION = 5
 
-        // Tables
+        // Tablas del esquema relacional
         const val TABLE_USERS = "users"
         const val TABLE_SHOPS = "shops"
         const val TABLE_ORDERS = "orders"
@@ -18,10 +28,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val TABLE_NOTIFICATIONS = "notifications"
         const val TABLE_PROMOTIONS = "promotions"
 
-        // Users columns
+        // Columnas de autenticación y roles de usuario
         const val USER_EMAIL = "email"
         const val USER_PASSWORD = "password"
         const val USER_ROLE = "role"
+
 
         // Shops columns
         const val SHOP_ID = "id"

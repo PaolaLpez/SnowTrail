@@ -14,8 +14,10 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
- * Service running on the mobile phone that synchronizes state with Wear OS
- * and listens to physical button actions/events sent from the watch.
+ * Servicio de Sincronización y Backend Móvil (Google Play Services Wearable Data Layer).
+ * Escucha eventos del smartwatch en segundo plano mediante [WearableListenerService],
+ * gestiona la máquina de estados finita de los pedidos (NUEVO, ACEPTADO, POSPUESTO, ENTREGADO, RECHAZADO)
+ * y sincroniza persistentemente los DataItems con el reloj mediante la API Wearable.
  */
 class WearSyncService : WearableListenerService() {
 
@@ -23,6 +25,7 @@ class WearSyncService : WearableListenerService() {
     private val handler = Handler(Looper.getMainLooper())
 
     private val repository by lazy { SnowTrailRepository(applicationContext) }
+
 
     // Mock Database State for Demonstration & Verification
     companion object {

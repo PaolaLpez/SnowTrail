@@ -1,30 +1,40 @@
 package mx.utng.snowtrail.shared
 
+/**
+ * Protocolo de comunicación y rutas del Data Layer (Google Play Services Wearable API).
+ * Define los endpoints para sincronización de estados persistentes (DataClient)
+ * y despacho de eventos/acciones bidireccionales en tiempo real (MessageClient).
+ */
 object WearPaths {
-    // Data Layer DataItem paths (Synchronized persistent states)
+    // ==========================================
+    // RUTAS DE ESTADO PERSISTENTE (DataClient)
+    // Sincronización automática de estado entre dispositivos
+    // ==========================================
     const val PATH_PEDIDO_ACTIVO = "/pedido_activo"
     const val PATH_NEVERIAS_CERCANAS = "/neverias_cercanas"
     const val PATH_NOTIFICACIONES = "/notificaciones"
 
-    // Data Layer Message paths (Events / Actions)
+    // ==========================================
+    // COMANDOS Y EVENTOS (MessageClient)
+    // Máquina de estados de pedidos y acciones de usuario
+    // ==========================================
     const val MSG_ACEPTAR_PEDIDO = "/accion/aceptar"
     const val MSG_ENTREGAR_PEDIDO = "/accion/entregar"
     const val MSG_POSPONER_PEDIDO = "/accion/posponer"
     const val MSG_RECHAZAR_PEDIDO = "/accion/rechazar"
     
-    // Command payload is expected to contain the shop ID
+    // Gestión de catálogo y preferencias de usuario
     const val MSG_TOGGLE_FAVORITO = "/accion/toggle_favorito"
-    
-    // Command payload contains the shop ID to open on mobile
     const val MSG_ABRIR_DETALLE_NEVERIA = "/accion/abrir_detalle"
     
-    // Command payload contains notification ID
+    // Gestión de alertas y notificaciones push
     const val MSG_ABRIR_NOTIFICACION = "/accion/abrir_notificacion"
     const val MSG_DESCARTAR_NOTIFICACION = "/accion/descartar_notificacion"
 
-    // Proximity alert event path (Sent from mobile to Wear OS, payload is shop info)
+    // Avisos de proximidad geográfica (GPS Geofencing / Trigger)
     const val PATH_ALARMA_PROXIMIDAD = "/alarma_proximidad"
 
-    // Heartbeat ping
+    // Monitoreo de conectividad y latencia (Heartbeat)
     const val PATH_HEARTBEAT = "/heartbeat"
 }
+
