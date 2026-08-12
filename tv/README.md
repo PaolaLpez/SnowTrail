@@ -10,11 +10,11 @@ graph TD
     A[Smartphone :app] -->|TCP Socket 'SELECT_SHOP:<id>'| B[Servidor TCP TV :9090]
     A -->|TCP Socket 'ADD_ORDER:<datos>'| B
     A -->|TCP Socket 'ADD_PROMO:<datos>'| B
-    B --> C[MainActivity TV - UI Recomposición]
+    B --> C[MainActivity TV - Orquestador]
     B --> D[DatabaseHelper TV v7 - SQLite]
-    C --> E[Columna Izquierda: Pedidos Nuevos]
-    C --> F[Columna Derecha: Cola en Preparación]
-    C --> G[Carrusel Dinámico: 50 Promociones]
+    C --> E[PromotionsTvScreen - Carrusel de Promociones]
+    C --> F[OrdersTvScreen - Columna Nuevos / Pendientes]
+    C --> G[TvThemeColors - Tokens de Diseño]
 ```
 
 ---
@@ -179,118 +179,480 @@ dependencies {
 
 ---
 
-### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt` (`main` de Android TV)
-* **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt`
-* **Propósito:** Actividad principal de TV que orquesta el servidor `ServerSocket(9090)`, el layout dividido de pantalla completa, el reloj digital en tiempo real y la reproducción de alertas visuales/sonoras al entrar pedidos.
+## 🎨 4. Capa de Presentación Modularizada (`tv/screens/` y `tv/theme/`)
+
+---
+
+### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/theme/TvThemeColors.kt` (Tokens de Color TV)
+* **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/theme/TvThemeColors.kt`
+* **Propósito:** Define los tokens de color pastel del sistema visual de Android TV para mantener coherencia visual con el módulo móvil.
 * **Contenido y Código:**
 ```kotlin
-package mx.utng.snowtrail.tv
+package mx.utng.snowtrail.tv.theme
 
-import android.media.AudioManager
-import android.media.ToneGenerator
-import android.os.Bundle
-import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+
+object TvThemeColors {
+    val VanillaBackground = Color(0xFFFCFAF2)   // Fondo vainilla suave
+    val MintGreen = Color(0xFFE2F9EE)            // Verde menta para paneles
+    val PinkStrawberry = Color(0xFFFEE1E8)       // Rosa fresa para acentos
+    val PinkBorder = Color(0xFFEF9A9A)           // Borde rosa pastel
+    val CocoaDark = Color(0xFF3E2723)            // Texto marrón oscuro
+    val CocoaMedium = Color(0xFF795548)          // Texto marrón medio
+    val GoldText = Color(0xFF8F6300)             // Texto dorado
+    val FresaPink = Color(0xFFB52D5E)            // Rosa intenso (totales)
+
+    // Estados de pedidos
+    val AceptadoGreen = Color(0xFF81C784)        // Verde para Aceptar
+    val PospuestoYellow = Color(0xFFFFD54F)      // Amarillo para Posponer
+    val RechazadoRed = Color(0xFFE57373)         // Rojo para Rechazar
+    val EntregadoBlueBg = Color(0xFFE3F2FD)      // Azul claro para Entregado
+    val EntregadoBlueText = Color(0xFF1565C0)    // Azul oscuro para Entregado
+    val CocoaBrown = Color(0xFF5D4037)           // Marrón para texto sobre amarillo
+}
+```
+
+---
+
+### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/screens/PromotionsTvScreen.kt` (Carrusel de Promociones)
+* **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/screens/PromotionsTvScreen.kt`
+* **Propósito:** Pantalla principal de TV que muestra un carrusel con auto-desplazamiento cada **4 segundos** de las promociones activas. Soporta navegación con control remoto mediante `FocusRequester`.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.tv.screens
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.*
-import mx.utng.snowtrail.tv.database.*
-import java.io.*
-import java.net.ServerSocket
-import java.net.Socket
-import kotlin.concurrent.thread
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvPromotion
+import mx.utng.snowtrail.tv.theme.TvThemeColors
 
-class MainActivity : ComponentActivity() {
-    private lateinit var repository: SnowTrailRepository
-    private var serverSocket: ServerSocket? = null
-    private var isRunning = true
-    private var serverThread: Thread? = null
+@Composable
+fun PromotionsTvScreen(
+    promotions: List<TvPromotion>,
+    selectedShopName: String,
+    onNavigateToOrders: () -> Unit
+) {
+    var currentIndex by remember { mutableIntStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        repository = SnowTrailRepository(this)
-
-        startTcpServer()
-
-        setContent {
-            TvMainScreen(repository = repository)
-        }
+    // Solicitar foco al iniciar para soportar control remoto de TV
+    LaunchedEffect(Unit) {
+        try {
+            delay(100L)
+            focusRequester.requestFocus()
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
-    // Servidor multihilo de Sockets TCP en puerto 9090
-    private fun startTcpServer() {
-        serverThread = thread(start = true) {
-            try {
-                serverSocket = ServerSocket(9090)
-                while (isRunning) {
-                    val clientSocket = serverSocket?.accept() ?: break
-                    thread {
-                        try {
-                            val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
-                            val line = reader.readLine()?.trim()
-                            if (!line.isNullOrBlank()) {
-                                runOnUiThread {
-                                    handleIncomingCommand(line)
-                                }
-                            }
-                            clientSocket.close()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+    // Auto-scroll del carrusel de promociones cada 4 segundos
+    LaunchedEffect(promotions) {
+        if (promotions.isNotEmpty()) {
+            while (true) {
+                delay(4000L)
+                currentIndex = (currentIndex + 1) % promotions.size
             }
         }
     }
 
-    private fun handleIncomingCommand(cmd: String) {
-        if (cmd.startsWith("SELECT_SHOP:")) {
-            val shopId = cmd.removePrefix("SELECT_SHOP:").trim()
-            // Sincroniza el carrusel de promociones a la tienda seleccionada
-        } else if (cmd.startsWith("ADD_ORDER:")) {
-            val rawData = cmd.removePrefix("ADD_ORDER:").trim()
-            val parts = rawData.split("|")
-            if (parts.size >= 8) {
-                val order = TvOrder(
-                    neveriaId = parts[0].trim(),
-                    id = parts[1].trim(),
-                    clienteNombre = parts[2].trim(),
-                    paraRecoger = parts[3].trim(),
-                    tiempoEntrega = parts[4].trim(),
-                    total = parts[5].trim(),
-                    items = parts[6].trim().replace(", ", "\n"),
-                    estado = parts[7].trim()
-                )
-                repository.saveOrder(order)
-                
-                // Alerta sonora y Toast visual en TV
-                try {
-                    val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 400)
-                } catch (e: Exception) {}
-                
-                Toast.makeText(this, "🔔 ¡NUEVO PEDIDO RECIBIDO: #${order.id}!", Toast.LENGTH_LONG).show()
+    val context = LocalContext.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(colors = listOf(TvThemeColors.MintGreen, TvThemeColors.VanillaBackground)))
+            .padding(24.dp)
+            .clickable { onNavigateToOrders() }
+    ) {
+        // Decoración de fondo semitransparente
+        Text("🍓", fontSize = 48.sp, modifier = Modifier.align(Alignment.TopEnd).padding(end = 120.dp, top = 20.dp).alpha(0.18f))
+        Text("🍦", fontSize = 48.sp, modifier = Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp).alpha(0.18f))
+        Text("🍨", fontSize = 48.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 40.dp).alpha(0.18f))
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header con nombre de heladería activa
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Box(modifier = Modifier.size(60.dp).background(Color.White, CircleShape).border(BorderStroke(1.5.dp, TvThemeColors.PinkBorder), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("🍦", fontSize = 32.sp)
+                    }
+                    Column {
+                        Text("LA NIEVERÍA PASTEL", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark)
+                        Text("Heladería Activa: $selectedShopName", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.CocoaMedium)
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("🔔 NOTIFICACIONES", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.CocoaMedium)
+                    Text("SUCURSAL MATRIZ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.GoldText)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
+            Text("OPCIÓN DE PROMOCIONES", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Carrusel de tarjetas: izquierda (previa) - centro (activa) - derecha (siguiente)
+            Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                if (promotions.isNotEmpty()) {
+                    for (i in -1..1) {
+                        val index = (currentIndex + i + promotions.size) % promotions.size
+                        val promo = promotions[index]
+                        val isCurrent = i == 0
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = if (isCurrent) Color.White else Color.White.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(24.dp),
+                            border = BorderStroke(if (isCurrent) 3.dp else 1.dp, if (isCurrent) TvThemeColors.PinkBorder else Color.LightGray),
+                            elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 12.dp else 4.dp),
+                            modifier = Modifier.width(if (isCurrent) 340.dp else 260.dp).height(if (isCurrent) 280.dp else 220.dp).padding(horizontal = 12.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
+                                Box(modifier = Modifier.size(if (isCurrent) 90.dp else 65.dp).background(TvThemeColors.PinkStrawberry, CircleShape), contentAlignment = Alignment.Center) {
+                                    Text(promo.imagen, fontSize = if (isCurrent) 45.sp else 32.sp)
+                                }
+                                Text(promo.nombre, fontSize = if (isCurrent) 20.sp else 16.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(promo.nota, fontSize = if (isCurrent) 12.sp else 10.sp, color = TvThemeColors.CocoaMedium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                } else {
+                    Text("No hay promociones activas actualmente.", fontSize = 18.sp, color = Color.Gray)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { android.widget.Toast.makeText(context, "Cargando Pedidos...", android.widget.Toast.LENGTH_SHORT).show(); onNavigateToOrders() },
+                colors = ButtonDefaults.buttonColors(containerColor = TvThemeColors.PinkBorder),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.align(Alignment.CenterHorizontally).width(220.dp).height(50.dp).focusRequester(focusRequester).focusable()
+            ) {
+                Text("🔄 ACTUALIZAR", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+    }
+}
+```
+
+---
+
+### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/screens/OrdersTvScreen.kt` (Gestión de Pedidos)
+* **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/screens/OrdersTvScreen.kt`
+* **Propósito:** Pantalla dividida en dos columnas que muestra en tiempo real los pedidos recibidos por TCP:
+  - **Columna Izquierda:** Pedido `NUEVO` activo con botones (Aceptar / Posponer / Rechazar).
+  - **Columna Derecha:** Lista scrollable de pedidos `PENDIENTE` con botón de marcar como `ENTREGADO`.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.tv.screens
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvOrder
+import mx.utng.snowtrail.tv.theme.TvThemeColors
+
+@Composable
+fun OrdersTvScreen(
+    orders: List<TvOrder>,
+    selectedShopName: String,
+    onUpdateOrder: (String, String) -> Unit,
+    onBack: () -> Unit
+) {
+    val newOrders = orders.filter { it.estado == "NUEVO" }
+    val pendingOrders = orders.filter { it.estado == "PENDIENTE" }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        try { delay(100L); focusRequester.requestFocus() } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    val context = LocalContext.current
+
+    Box(modifier = Modifier.fillMaxSize().background(TvThemeColors.VanillaBackground).padding(24.dp)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Box(modifier = Modifier.size(50.dp).background(Color.White, CircleShape).border(BorderStroke(1.5.dp, TvThemeColors.PinkBorder), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("🍦", fontSize = 24.sp)
+                    }
+                    Column {
+                        Text("LA NIEVERÍA PASTEL", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark)
+                        Text("Heladería Activa: $selectedShopName", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.CocoaMedium)
+                    }
+                }
+                Text("PEDIDOS", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark)
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Vista dividida
+            Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                // Columna Izquierda: Pedido NUEVO activo
+                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Text("Pedidos Nuevos", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, modifier = Modifier.padding(bottom = 12.dp))
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth().background(TvThemeColors.MintGreen.copy(alpha = 0.5f), RoundedCornerShape(16.dp)).border(BorderStroke(1.5.dp, TvThemeColors.MintGreen), RoundedCornerShape(16.dp)).padding(16.dp)) {
+                        if (newOrders.isNotEmpty()) {
+                            val activeNew = newOrders.first()
+                            Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("Cliente: ${activeNew.cliente}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.CocoaDark)
+                                    Text(activeNew.paraRecoger, fontSize = 16.sp, color = TvThemeColors.CocoaMedium)
+                                    Text("Tiempo de entrega aprox: ${activeNew.tiempoEntrega}", fontSize = 16.sp, color = TvThemeColors.CocoaMedium)
+                                    Text("Total: ${activeNew.total}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.FresaPink)
+                                    Divider(color = Color.LightGray)
+                                    Text("Items:", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.CocoaDark)
+                                    Text(activeNew.items.replace(", ", "\n"), fontSize = 16.sp, color = TvThemeColors.CocoaDark)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Button(onClick = { onUpdateOrder(activeNew.id, "PENDIENTE") }, colors = ButtonDefaults.buttonColors(containerColor = TvThemeColors.AceptadoGreen), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) {
+                                        Text("✔ Aceptar", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(onClick = { onUpdateOrder(activeNew.id, "PENDIENTE") }, colors = ButtonDefaults.buttonColors(containerColor = TvThemeColors.PospuestoYellow), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) {
+                                        Text("🕒 Posponer", color = TvThemeColors.CocoaBrown, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(onClick = { onUpdateOrder(activeNew.id, "RECHAZADO") }, colors = ButtonDefaults.buttonColors(containerColor = TvThemeColors.RechazadoRed), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) {
+                                        Text("❌ Rechazar", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No hay nuevos pedidos.", fontSize = 16.sp, color = Color.Gray) }
+                        }
+                    }
+                }
+
+                // Columna Derecha: Cola de pedidos PENDIENTES
+                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Text("Pendientes", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TvThemeColors.CocoaDark, modifier = Modifier.padding(bottom = 12.dp))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        if (pendingOrders.isNotEmpty()) {
+                            items(pendingOrders) { order ->
+                                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color.LightGray), modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Column {
+                                                Text("# Num. Pedido: ${order.id}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TvThemeColors.CocoaDark)
+                                                Text("Cliente: ${order.cliente}", fontSize = 14.sp, color = Color.Gray)
+                                            }
+                                            Button(onClick = { onUpdateOrder(order.id, "ENTREGADO") }, colors = ButtonDefaults.buttonColors(containerColor = TvThemeColors.EntregadoBlueBg), shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, TvThemeColors.EntregadoBlueText), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), modifier = Modifier.height(36.dp)) {
+                                                Text("✔ Entregado", color = TvThemeColors.EntregadoBlueText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("Items:\n${order.items.replace(", ", "\n")}", fontSize = 13.sp, color = Color.DarkGray)
+                                    }
+                                }
+                            }
+                        } else {
+                            item { Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) { Text("No hay pedidos pendientes.", fontSize = 16.sp, color = Color.Gray) } }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { android.widget.Toast.makeText(context, "Volviendo a Promociones...", android.widget.Toast.LENGTH_SHORT).show(); onBack() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA7B8C4)), shape = RoundedCornerShape(20.dp), modifier = Modifier.width(180.dp).height(45.dp).focusRequester(focusRequester).focusable()) {
+                Text("🔄 Actualizar", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+    }
+}
+```
+
+---
+
+### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt` (Orquestador Android TV)
+* **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/MainActivity.kt`
+* **Propósito:** Actividad principal limpia y desacoplada. Gestiona el servidor TCP, procesa comandos del móvil y delega la UI a las pantallas especializadas.
+* **Contenido y Código:**
+```kotlin
+package mx.utng.snowtrail.tv
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.fillMaxSize
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import mx.utng.snowtrail.tv.database.SnowTrailRepository
+import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvOrder
+import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvPromotion
+import mx.utng.snowtrail.tv.screens.OrdersTvScreen
+import mx.utng.snowtrail.tv.screens.PromotionsTvScreen
+
+class MainActivity : ComponentActivity() {
+
+    private lateinit var repository: SnowTrailRepository
+    private var serverJob: kotlinx.coroutines.Job? = null
+    private var onSocketMessageReceived: ((String) -> Unit)? = null
+
+    private val shopNames = mapOf(
+        "nev_los_abuelos" to "Los Abuelos",
+        "nev_la_mich" to "La Michoacana",
+        "nev_zero" to "Helados Bajo Cero",
+        "nev_artis" to "Artesanales del Valle",
+        "nev_far" to "Heladería Lejana",
+        "nev_centenario" to "Nieves del Centenario",
+        "nev_gelato" to "Gelato Italiano",
+        "nev_antonio" to "Paletería San Antonio",
+        "nev_copo" to "El Copo Dorado",
+        "nev_flor" to "Flor de Dolores"
+    )
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        repository = SnowTrailRepository(applicationContext)
+
+        // Servidor TCP en segundo plano (Puerto 9090)
+        serverJob = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            var serverSocket: java.net.ServerSocket? = null
+            try {
+                serverSocket = java.net.ServerSocket(9090)
+                while (true) {
+                    val socket = serverSocket.accept()
+                    val reader = java.io.BufferedReader(java.io.InputStreamReader(socket.getInputStream()))
+                    val line = reader.readLine()
+                    if (line != null) {
+                        withContext(Dispatchers.Main) { onSocketMessageReceived?.invoke(line) }
+                    }
+                    reader.close()
+                    socket.close()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TvSocketServer", "Error: ${e.message}", e)
+            } finally {
+                try { serverSocket?.close() } catch (ex: Exception) {}
+            }
+        }
+
+        setContent {
+            MaterialTheme {
+                var currentScreen by remember { mutableStateOf("promotions") }
+                var promotions by remember { mutableStateOf(emptyList<TvPromotion>()) }
+                var orders by remember { mutableStateOf(emptyList<TvOrder>()) }
+                var selectedShopId by remember { mutableStateOf<String?>("nev_los_abuelos") }
+
+                // Procesar mensajes TCP del móvil
+                DisposableEffect(Unit) {
+                    onSocketMessageReceived = { msg ->
+                        try {
+                            when {
+                                msg.startsWith("SELECT_SHOP:") -> {
+                                    val shopId = msg.substringAfter("SELECT_SHOP:").trim()
+                                    selectedShopId = if (shopId == "ALL") null else shopId
+                                }
+                                msg.startsWith("ADD_PROMO:") -> {
+                                    val parts = msg.substringAfter("ADD_PROMO:").split("|")
+                                    if (parts.size >= 7) {
+                                        val newPromo = TvPromotion(parts[1].trim(), parts[2].trim(), parts[3].trim(), parts[4].trim(), parts[5].trim(), parts[6].trim(), parts[0].trim())
+                                        repository.savePromotion(newPromo)
+                                        promotions = repository.getPromotions()
+                                        currentScreen = "promotions"
+                                    }
+                                }
+                                msg.startsWith("ADD_ORDER:") -> {
+                                    val parts = msg.substringAfter("ADD_ORDER:").split("|")
+                                    if (parts.size >= 8) {
+                                        val newOrder = TvOrder(parts[1].trim(), parts[2].trim(), parts[3].trim(), parts[4].trim(), parts[5].trim(), parts[6].trim(), parts[7].trim(), parts[0].trim())
+                                        repository.saveOrder(newOrder)
+                                        orders = repository.getOrders()
+                                        currentScreen = "orders"
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                    onDispose { onSocketMessageReceived = null }
+                }
+
+                LaunchedEffect(currentScreen, selectedShopId) {
+                    promotions = repository.getPromotions()
+                    orders = repository.getOrders()
+                }
+
+                val filteredPromotions = promotions.filter { selectedShopId == null || it.neveriaId == selectedShopId }
+                val filteredOrders = orders.filter { selectedShopId == null || it.neveriaId == selectedShopId }
+
+                Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFFCFAF2)) {
+                    if (currentScreen == "promotions") {
+                        PromotionsTvScreen(
+                            promotions = filteredPromotions,
+                            selectedShopName = shopNames[selectedShopId] ?: "Todas",
+                            onNavigateToOrders = { currentScreen = "orders" }
+                        )
+                    } else {
+                        OrdersTvScreen(
+                            orders = filteredOrders,
+                            selectedShopName = shopNames[selectedShopId] ?: "Todas",
+                            onUpdateOrder = { orderId, newStatus ->
+                                repository.updateOrderStatus(orderId, newStatus)
+                                orders = repository.getOrders()
+                            },
+                            onBack = { currentScreen = "promotions" }
+                        )
+                    }
+                }
             }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false
-        serverSocket?.close()
+        serverJob?.cancel()
     }
 }
 ```
 
 > [!NOTE]
 > Para consultar cómo el teléfono móvil envía los pedidos por sockets hacia la TV, consultar el [README del Módulo Móvil](../app/README.md).
+
+---
+
+## 🗄️ 5. Capa de Base de Datos (`tv/database/`)
 
 ---
 
@@ -310,48 +672,36 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val DATABASE_NAME = "snowtrail_tv.db"
         const val DATABASE_VERSION = 7
 
-        const val TABLE_SHOPS = "shops"
-        const val COLUMN_SHOP_ID = "id"
-        const val COLUMN_SHOP_NAME = "name"
-        const val COLUMN_SHOP_SCHEDULE = "schedule"
-        const val COLUMN_SHOP_CONTACT = "contact"
-        const val COLUMN_SHOP_ADDRESS = "address"
-
         const val TABLE_PROMOTIONS = "promotions"
-        const val COLUMN_PROMO_ID = "id"
-        const val COLUMN_PROMO_SHOP_ID = "shop_id"
-        const val COLUMN_PROMO_NAME = "name"
-        const val COLUMN_PROMO_START = "start_date"
-        const val COLUMN_PROMO_END = "end_date"
-        const val COLUMN_PROMO_NOTE = "note"
-        const val COLUMN_PROMO_ICON = "icon"
+        const val PROMO_ID = "id"
+        const val PROMO_NAME = "nombre"
+        const val PROMO_START = "fecha_inicio"
+        const val PROMO_END = "fecha_fin"
+        const val PROMO_NOTE = "nota"
+        const val PROMO_IMAGE = "imagen"
+        const val PROMO_SHOP_ID = "neveria_id"
 
         const val TABLE_ORDERS = "orders"
-        const val COLUMN_ORDER_ID = "id"
-        const val COLUMN_ORDER_SHOP_ID = "shop_id"
-        const val COLUMN_ORDER_CLIENT = "client_name"
-        const val COLUMN_ORDER_RECOGIDA = "para_recoger"
-        const val COLUMN_ORDER_TIEMPO = "tiempo_entrega"
-        const val COLUMN_ORDER_TOTAL = "total_str"
-        const val COLUMN_ORDER_ITEMS = "items"
-        const val COLUMN_ORDER_STATUS = "status"
+        const val ORDER_ID = "id"
+        const val ORDER_CLIENT = "cliente"
+        const val ORDER_PICKUP = "para_recoger"
+        const val ORDER_ETA = "tiempo_entrega"
+        const val ORDER_TOTAL = "total"
+        const val ORDER_ITEMS = "items"
+        const val ORDER_STATUS = "estado"
+        const val ORDER_SHOP_ID = "neveria_id"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE $TABLE_SHOPS ($COLUMN_SHOP_ID TEXT PRIMARY KEY, $COLUMN_SHOP_NAME TEXT, $COLUMN_SHOP_SCHEDULE TEXT, $COLUMN_SHOP_CONTACT TEXT, $COLUMN_SHOP_ADDRESS TEXT)")
-        db.execSQL("CREATE TABLE $TABLE_PROMOTIONS ($COLUMN_PROMO_ID TEXT PRIMARY KEY, $COLUMN_PROMO_SHOP_ID TEXT, $COLUMN_PROMO_NAME TEXT, $COLUMN_PROMO_START TEXT, $COLUMN_PROMO_END TEXT, $COLUMN_PROMO_NOTE TEXT, $COLUMN_PROMO_ICON TEXT)")
-        db.execSQL("CREATE TABLE $TABLE_ORDERS ($COLUMN_ORDER_ID TEXT PRIMARY KEY, $COLUMN_ORDER_SHOP_ID TEXT, $COLUMN_ORDER_CLIENT TEXT, $COLUMN_ORDER_RECOGIDA TEXT, $COLUMN_ORDER_TIEMPO TEXT, $COLUMN_ORDER_TOTAL TEXT, $COLUMN_ORDER_ITEMS TEXT, $COLUMN_ORDER_STATUS TEXT)")
-        
-        // Seeding masivo de 50 promociones únicas (5 por cada una de las 10 neverías)
+        db.execSQL("CREATE TABLE $TABLE_PROMOTIONS ($PROMO_ID TEXT PRIMARY KEY, $PROMO_NAME TEXT, $PROMO_START TEXT, $PROMO_END TEXT, $PROMO_NOTE TEXT, $PROMO_IMAGE TEXT, $PROMO_SHOP_ID TEXT)")
+        db.execSQL("CREATE TABLE $TABLE_ORDERS ($ORDER_ID TEXT PRIMARY KEY, $ORDER_CLIENT TEXT, $ORDER_PICKUP TEXT, $ORDER_ETA TEXT, $ORDER_TOTAL TEXT, $ORDER_ITEMS TEXT, $ORDER_STATUS TEXT, $ORDER_SHOP_ID TEXT)")
         seedPromotions(db)
     }
 
-    private fun seedPromotions(db: SQLiteDatabase) {
-        // Inserción de 50 promociones temáticas
-    }
+    // Seeding masivo de 50 promociones únicas (5 por cada una de las 10 neverías)
+    private fun seedPromotions(db: SQLiteDatabase) { /* ... 50 inserciones ... */ }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_SHOPS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_PROMOTIONS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDERS")
         onCreate(db)
@@ -363,7 +713,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
 ### 📄 `tv/src/main/java/mx/utng/snowtrail/tv/database/SnowTrailRepository.kt` (Repositorio de TV)
 * **Ubicación:** `tv/src/main/java/mx/utng/snowtrail/tv/database/SnowTrailRepository.kt`
-* **Propósito:** Capa de datos de Android TV. Expone métodos para persistir pedidos entrantes y consultar promociones filtradas por heladería activa.
+* **Propósito:** Capa de datos de Android TV. Define los modelos `TvPromotion` y `TvOrder`, y expone métodos para persistir, consultar y actualizar pedidos y promociones.
 * **Contenido y Código:**
 ```kotlin
 package mx.utng.snowtrail.tv.database
@@ -372,70 +722,113 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 
-data class TvOrder(
-    val neveriaId: String,
-    val id: String,
-    val clienteNombre: String,
-    val paraRecoger: String,
-    val tiempoEntrega: String,
-    val total: String,
-    val items: String,
-    val estado: String
-)
-
-data class TvPromotion(
-    val id: String,
-    val shopId: String,
-    val nombre: String,
-    val fechaInicio: String,
-    val fechaFin: String,
-    val nota: String,
-    val icon: String
-)
-
 class SnowTrailRepository(context: Context) {
     private val dbHelper = DatabaseHelper(context)
 
-    fun saveOrder(order: TvOrder) {
-        val db = dbHelper.writableDatabase
-        val values = ContentValues().apply {
-            put(DatabaseHelper.COLUMN_ORDER_ID, order.id)
-            put(DatabaseHelper.COLUMN_ORDER_SHOP_ID, order.neveriaId)
-            put(DatabaseHelper.COLUMN_ORDER_CLIENT, order.clienteNombre)
-            put(DatabaseHelper.COLUMN_ORDER_RECOGIDA, order.paraRecoger)
-            put(DatabaseHelper.COLUMN_ORDER_TIEMPO, order.tiempoEntrega)
-            put(DatabaseHelper.COLUMN_ORDER_TOTAL, order.total)
-            put(DatabaseHelper.COLUMN_ORDER_ITEMS, order.items)
-            put(DatabaseHelper.COLUMN_ORDER_STATUS, order.estado)
-        }
-        db.insertWithOnConflict(DatabaseHelper.TABLE_ORDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
-    }
+    data class TvPromotion(
+        val id: String,
+        val nombre: String,
+        val fechaInicio: String,
+        val fechaFin: String,
+        val nota: String,
+        val imagen: String,
+        val neveriaId: String
+    )
 
-    fun getPromotionsByShop(shopId: String): List<TvPromotion> {
+    data class TvOrder(
+        val id: String,
+        val cliente: String,
+        val paraRecoger: String,
+        val tiempoEntrega: String,
+        val total: String,
+        val items: String,
+        val estado: String,
+        val neveriaId: String
+    )
+
+    fun getPromotions(): List<TvPromotion> {
         val list = mutableListOf<TvPromotion>()
         val db = dbHelper.readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_PROMOTIONS} WHERE ${DatabaseHelper.COLUMN_PROMO_SHOP_ID} = ?", arrayOf(shopId))
+        val cursor = db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_PROMOTIONS}", null)
         if (cursor.moveToFirst()) {
             do {
-                val id = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_ID))
-                val sId = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_SHOP_ID))
-                val name = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_NAME))
-                val start = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_START))
-                val end = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_END))
-                val note = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_NOTE))
-                val icon = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PROMO_ICON))
-                list.add(TvPromotion(id, sId, name, start, end, note, icon))
+                list.add(TvPromotion(
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_ID)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_NAME)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_START)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_END)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_NOTE)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_IMAGE)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.PROMO_SHOP_ID)) ?: "nev_los_abuelos"
+                ))
             } while (cursor.moveToNext())
         }
         cursor.close()
         return list
+    }
+
+    fun getOrders(): List<TvOrder> {
+        val list = mutableListOf<TvOrder>()
+        val db = dbHelper.readableDatabase
+        val cursor = db.rawQuery("SELECT * FROM ${DatabaseHelper.TABLE_ORDERS}", null)
+        if (cursor.moveToFirst()) {
+            do {
+                list.add(TvOrder(
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_ID)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_CLIENT)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_PICKUP)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_ETA)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_TOTAL)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_ITEMS)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_STATUS)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.ORDER_SHOP_ID)) ?: "nev_los_abuelos"
+                ))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return list
+    }
+
+    fun updateOrderStatus(orderId: String, newStatus: String) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply { put(DatabaseHelper.ORDER_STATUS, newStatus) }
+        db.update(DatabaseHelper.TABLE_ORDERS, values, "${DatabaseHelper.ORDER_ID} = ?", arrayOf(orderId))
+    }
+
+    fun savePromotion(promo: TvPromotion) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(DatabaseHelper.PROMO_ID, promo.id)
+            put(DatabaseHelper.PROMO_NAME, promo.nombre)
+            put(DatabaseHelper.PROMO_START, promo.fechaInicio)
+            put(DatabaseHelper.PROMO_END, promo.fechaFin)
+            put(DatabaseHelper.PROMO_NOTE, promo.nota)
+            put(DatabaseHelper.PROMO_IMAGE, promo.imagen)
+            put(DatabaseHelper.PROMO_SHOP_ID, promo.neveriaId)
+        }
+        db.insertWithOnConflict(DatabaseHelper.TABLE_PROMOTIONS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun saveOrder(order: TvOrder) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(DatabaseHelper.ORDER_ID, order.id)
+            put(DatabaseHelper.ORDER_CLIENT, order.cliente)
+            put(DatabaseHelper.ORDER_PICKUP, order.paraRecoger)
+            put(DatabaseHelper.ORDER_ETA, order.tiempoEntrega)
+            put(DatabaseHelper.ORDER_TOTAL, order.total)
+            put(DatabaseHelper.ORDER_ITEMS, order.items)
+            put(DatabaseHelper.ORDER_STATUS, order.estado)
+            put(DatabaseHelper.ORDER_SHOP_ID, order.neveriaId)
+        }
+        db.insertWithOnConflict(DatabaseHelper.TABLE_ORDERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 }
 ```
 
 ---
 
-## 🔌 5. Configuración y Redirección del Puerto 9090 (ADB)
+## 🔌 6. Configuración y Redirección del Puerto 9090 (ADB)
 
 Para que los pedidos y promociones viajen en tiempo real desde el dispositivo/emulador móvil hacia la pantalla de Android TV a través del **Servidor Socket TCP en el puerto 9090**, se deben ejecutar los siguientes dos comandos de redirección con ADB:
 
