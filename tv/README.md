@@ -707,17 +707,43 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val ORDER_SHOP_ID = "neveria_id"
     }
 
+    /**
+     * Callback de creación de tablas DDL y siembra (seeding) de datos iniciales en la base de datos de TV.
+     * 
+     * @param db Instancia de la base de datos SQLite.
+     */
     override fun onCreate(db: SQLiteDatabase) {
+        // [DDL PROMOCIONES]: Definición del esquema para las tarjetas publicitarias de la marquesina
         db.execSQL("CREATE TABLE $TABLE_PROMOTIONS ($PROMO_ID TEXT PRIMARY KEY, $PROMO_NAME TEXT, $PROMO_START TEXT, $PROMO_END TEXT, $PROMO_NOTE TEXT, $PROMO_IMAGE TEXT, $PROMO_SHOP_ID TEXT)")
+        // [DDL ÓRDENES]: Definición del esquema para la comandera digital split-screen de la cocina
         db.execSQL("CREATE TABLE $TABLE_ORDERS ($ORDER_ID TEXT PRIMARY KEY, $ORDER_CLIENT TEXT, $ORDER_PICKUP TEXT, $ORDER_ETA TEXT, $ORDER_TOTAL TEXT, $ORDER_ITEMS TEXT, $ORDER_STATUS TEXT, $ORDER_SHOP_ID TEXT)")
+        // Invoca la siembra de datos estáticos demo para promociones y comandera
         seedPromotions(db)
     }
 
-    private fun seedPromotions(db: SQLiteDatabase) { /* ... 50 inserciones ... */ }
+    /**
+     * Función privada para sembrar (seed) 5 promociones por cada una de las 11 neverías y pedidos de prueba.
+     * 
+     * @param db Instancia de SQLiteDatabase en modo escritura.
+     */
+    private fun seedPromotions(db: SQLiteDatabase) {
+        // Inserciones iniciales SQL en las tablas TABLE_PROMOTIONS y TABLE_ORDERS
+    }
 
+    /**
+     * Callback invocado al migrar la versión de la base de datos de la TV.
+     * Reconstruye las tablas de promociones y órdenes destruyendo las anteriores.
+     * 
+     * @param db Instancia de SQLiteDatabase.
+     * @param oldVersion Versión antigua.
+     * @param newVersion Versión nueva objetivo.
+     */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Elimina la tabla de promociones previa si existe
         db.execSQL("DROP TABLE IF EXISTS $TABLE_PROMOTIONS")
+        // Elimina la tabla de órdenes previa si existe
         db.execSQL("DROP TABLE IF EXISTS $TABLE_ORDERS")
+        // Reinvoca el proceso DDL y la siembra de datos
         onCreate(db)
     }
 }

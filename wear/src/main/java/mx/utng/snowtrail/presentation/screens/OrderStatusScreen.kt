@@ -46,6 +46,7 @@ fun OrderStatusScreen(
     onShopClicked: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // [CONTENEDOR CIRCULAR DE WEAR OS]: Ajusta el diseño a la pantalla redonda del smartwatch con fondo oscuro
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -53,17 +54,20 @@ fun OrderStatusScreen(
             .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
+        // [COLUMNA PRINCIPAL RECTILÍNEA DE ESTADOS Y NAVEGACIÓN]:
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Encabezado / Nombre de App y Estado de Conectividad
+            // [INDICADOR DE ENLACE DE RED HARDWARE / BLUETOOTH]:
+            // Muestra un punto verde (Conectado) o rojo (Desconectado) que evalúa el estado del enlace con el smartphone
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // Título de la app en tipografía rosa helado
                 Text(
                     text = "SnowTrail",
                     fontSize = 11.sp,
@@ -71,6 +75,7 @@ fun OrderStatusScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.width(4.dp))
+                // Círculo de estatus de red (Punto verde o rojo)
                 Box(
                     modifier = Modifier
                         .size(6.dp)
@@ -81,8 +86,9 @@ fun OrderStatusScreen(
                 )
             }
 
+            // [EVALUACIÓN DE PEDIDO ACTIVO EN PANTALLA DE RELOJ]:
             if (order != null) {
-                // Bloque de Pedido Activo
+                // Tarjeta contenedora interactiva para el ticket de la orden activa en cocina
                 Card(
                     onClick = onOrderClicked,
                     backgroundPainter = CardDefaults.cardBackgroundPainter(

@@ -12,9 +12,13 @@ import android.database.sqlite.SQLiteOpenHelper
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
+        /** Nombre de la base de datos SQLite para la Android TV. */
         private const val DATABASE_NAME = "snowtrail_tv.db"
-        private const val DATABASE_VERSION = 7 // Upgraded to seed all demo orders as PENDIENTE
+        
+        /** Versión del esquema SQLite (Versión 7 para precarga de pedidos iniciales). */
+        private const val DATABASE_VERSION = 7
 
+        /** Nombre de la tabla de promociones. */
         const val TABLE_PROMOTIONS = "promotions"
         const val PROMO_ID = "id"
         const val PROMO_NAME = "nombre"
@@ -22,8 +26,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val PROMO_END = "fecha_fin"
         const val PROMO_NOTE = "nota"
         const val PROMO_IMAGE = "imagen"
-        const val PROMO_SHOP_ID = "neveria_id" // New column
+        const val PROMO_SHOP_ID = "neveria_id"
 
+        /** Nombre de la tabla de órdenes y comandera digital. */
         const val TABLE_ORDERS = "orders"
         const val ORDER_ID = "id"
         const val ORDER_CLIENT = "cliente"
@@ -32,11 +37,17 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val ORDER_TOTAL = "total"
         const val ORDER_ITEMS = "items"
         const val ORDER_STATUS = "estado"
-        const val ORDER_SHOP_ID = "neveria_id" // New column
+        const val ORDER_SHOP_ID = "neveria_id"
     }
 
+    /**
+     * Callback de creación de tablas DDL y siembra (seeding) de datos iniciales en la base de datos de TV.
+     * 
+     * @param db Instancia de la base de datos SQLite.
+     */
     override fun onCreate(db: SQLiteDatabase) {
         try {
+            // [DDL PROMOCIONES]: Definición del esquema para las tarjetas publicitarias de la marquesina
             val createPromotionsTable = """
                 CREATE TABLE $TABLE_PROMOTIONS (
                     $PROMO_ID TEXT PRIMARY KEY,
@@ -49,6 +60,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 )
             """.trimIndent()
 
+            // [DDL ÓRDENES]: Definición del esquema para la comandera digital split-screen de la cocina
             val createOrdersTable = """
                 CREATE TABLE $TABLE_ORDERS (
                     $ORDER_ID TEXT PRIMARY KEY,
@@ -62,10 +74,25 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 )
             """.trimIndent()
 
+            // Ejecuta las sentencias SQL DDL de creación de tablas
             db.execSQL(createPromotionsTable)
             db.execSQL(createOrdersTable)
 
-            // Seed 5 promotions for each of the 10 neveria IDs
+            // Invoca la siembra de datos estáticos demo para promociones y comandera
+            seedPromotions(db)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Función privada para sembrar (seed) 5 promociones por cada una de las 11 neverías y pedidos de prueba.
+     * 
+     * @param db Instancia de SQLiteDatabase en modo escritura.
+     */
+    private fun seedPromotions(db: SQLiteDatabase) {
+        try {
+            // [SIEMBRA DEMO]: Inserciones iniciales para la marquesina publicitaria
             // 1. Los Abuelos (nev_los_abuelos)
             db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('pa1', '2x1 en Helados de Fruta', '2026-08-01', '2026-08-30', 'Aplica en todos los sabores naturales', '🍓', 'nev_los_abuelos')")
             db.execSQL("INSERT INTO $TABLE_PROMOTIONS VALUES ('pa2', 'Copa Suprema de Fresa y Nueces', '2026-08-01', '2026-08-30', '25% de descuento los fines de semana', '🍨', 'nev_los_abuelos')")
