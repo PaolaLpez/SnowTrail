@@ -117,3 +117,6 @@ Para consultar el código fuente documentado, diagramas de arquitectura y desglo
 * [📱 **Módulo Móvil (Smartphone) - `:app`**](app/README.md): Arquitectura Jetpack Compose, roles Cliente/Admin, persistencia SQLite v5, mapa Positionstack + Leaflet y transmisor de sockets TCP.
 * [⌚ **Módulo Smartwatch (Wear OS) - `:wear`**](wear/README.md): Compose for Wear OS, notificaciones con marquesina continua (`basicMarquee`), cupones de descuento interactivos y soporte de botones físicos.
 * [📺 **Módulo Android TV - `:tv`**](tv/README.md): Servidor multihilo de sockets TCP (puerto 9090), layout dividido, cola de pedidos nuevos/pendientes con alertas y carrusel de 50 promociones únicas.
+
+## Carta Firmada
+[Carta .pdf](https://github.com/user-attachments/files/31048369/Carta.pdf)
