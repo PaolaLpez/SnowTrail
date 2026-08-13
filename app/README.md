@@ -896,6 +896,11 @@ import mx.utng.snowtrail.service.*
 class SnowTrailRepository(context: Context) {
     private val dbHelper = DatabaseHelper(context)
 
+    /**
+     * Consulta el catálogo de heladerías almacenadas localmente en SQLite.
+     * 
+     * @return Lista de objetos MockShop con coordenadas, horarios y estatus de favorita.
+     */
     fun getShops(): List<MockShop> {
         val shops = mutableListOf<MockShop>()
         val db = dbHelper.readableDatabase
@@ -914,6 +919,13 @@ class SnowTrailRepository(context: Context) {
         return shops
     }
 
+    /**
+     * Alterna la preferencia de favorita para una tienda específica vinculada al correo del usuario.
+     * 
+     * @param userEmail Correo del usuario autenticado.
+     * @param shopId Identificador de la tienda a togglear.
+     * @return True si ahora es favorita, False en caso contrario.
+     */
     fun toggleFavoriteShopForUser(userEmail: String, shopId: String): Boolean {
         val db = dbHelper.writableDatabase
         var isFav = false
