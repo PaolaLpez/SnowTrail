@@ -247,6 +247,12 @@ import mx.utng.snowtrail.shared.WearPaths
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * ARCHIVO: MainActivity.kt
+ * PROPÓSITO: Actividad Principal y Orquestador de la UI para Wear OS (`:wear`).
+ * Maneja el ciclo de vida, escuchadores de sincronización en segundo plano con DataClient,
+ * gestos de navegación y eventos de botones físicos de hardware (STEM Keys) y motor háptico.
+ */
 class MainActivity : ComponentActivity() {
 
     private val tag = "WearMainActivity"
@@ -1090,6 +1096,20 @@ import mx.utng.snowtrail.model.NeveriaResumen
 import mx.utng.snowtrail.presentation.theme.SnowTrailColors
 import java.util.Locale
 
+/**
+ * ARCHIVO: NearbyShopsScreen.kt
+ * PROPÓSITO: Pantalla 2 de Wear OS (UI Layer).
+ * Muestra el directorio de heladerías cercanas ordenadas por distancia GPS, estatus de favorita y promociones activas.
+ */
+
+/**
+ * Función Composable para la Pantalla 2 de Wear OS (Directorio de Neverías Cercanas).
+ * 
+ * @param shops Lista de sucursales cercanas de neverías.
+ * @param focusedIndex Índice de la sucursal seleccionada mediante botones de hardware.
+ * @param onToggleFavorite Callback para alternar el estatus de favorita de la nevería.
+ * @param onShopClick Callback para abrir detalles de la nevería.
+ */
 @Composable
 fun NearbyShopsScreen(
     shops: List<NeveriaResumen>,
@@ -1253,6 +1273,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * ARCHIVO: NotificationTrayScreen.kt
+ * PROPÓSITO: Pantalla 0 de Wear OS (UI Layer).
+ * Bandeja deslizable de notificaciones push, avisos de promociones y alertas de proximidad con marquees de texto.
+ */
+
+/**
+ * Función Composable para la Pantalla 0 de Wear OS (Bandeja de Notificaciones).
+ * 
+ * @param notifications Lista de notificaciones recibidas en el reloj.
+ * @param focusedIndex Índice de la notificación enfocado por hardware.
+ * @param onNotificationClicked Callback para abrir el detalle de la notificación.
+ * @param modifier Modificador visual Compose.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NotificationTrayScreen(
@@ -1413,6 +1447,21 @@ private data class NotificationTypeUI(
     val emoji: String
 )
 
+/**
+ * ARCHIVO: NotificationDetailScreen.kt
+ * PROPÓSITO: Pantalla Modal de Detalle de Notificación para Wear OS (UI Layer).
+ * Despliega el contenido completo de una alerta, cupón de descuento con código alfanumérico y botones de acción.
+ */
+
+/**
+ * Función Composable para el detalle de una notificación en Wear OS.
+ * 
+ * @param notification Objeto NotificacionResumen a visualizar.
+ * @param onBack Callback para regresar a la bandeja.
+ * @param onConfirm Callback para abrir la alerta o cupón en el smartphone.
+ * @param onDismiss Callback para descartar la notificación.
+ * @param modifier Modificador visual Compose.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NotificationDetailScreen(
