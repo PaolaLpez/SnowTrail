@@ -255,20 +255,39 @@ import kotlinx.coroutines.delay
 import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvPromotion
 import mx.utng.snowtrail.tv.theme.TvThemeColors
 
+/**
+ * ARCHIVO: PromotionsTvScreen.kt
+ * PROPÓSITO: Pantalla principal de Promociones para Android TV (UI Layer).
+ * Muestra un carrusel panorámico con auto-desplazamiento cada 4 segundos de las promociones activas y soporte D-Pad con FocusRequester.
+ */
+
+/**
+ * Función Composable para la marquesina de promociones en Android TV.
+ * 
+ * @param promotions Lista de promociones registradas en la heladería.
+ * @param selectedShopName Nombre de la sucursal actualmente seleccionada.
+ * @param onNavigateToOrders Callback para cambiar a la pantalla de cola de pedidos.
+ */
 @Composable
 fun PromotionsTvScreen(
     promotions: List<TvPromotion>,
     selectedShopName: String,
     onNavigateToOrders: () -> Unit
 ) {
+    // [ESTADO DEL CARRUSEL]: Índice de la oferta/promoción que se proyecta en pantalla gigante
     var currentIndex by remember { mutableIntStateOf(0) }
+    
+    // [MANEJO DE ENFOQUE D-PAD DE TV]: Enrutador de foco para que el control remoto controle el botón en pantalla
     val focusRequester = remember { FocusRequester() }
 
+    // [EFECTO INICIAL DE ENFOQUE]: Solicita el foco después de 100ms para permitir la interacción del mando de la TV
     LaunchedEffect(Unit) {
         try {
             delay(100L)
             focusRequester.requestFocus()
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     LaunchedEffect(promotions) {

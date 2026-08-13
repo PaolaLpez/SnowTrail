@@ -332,6 +332,16 @@ import mx.utng.snowtrail.service.MockShop
  * PROPÓSITO: Pantalla de Explorador de Neverías (UI Layer).
  * Permite filtrar entre todas las sucursales y las marcadas como favoritas independientes, mostrando distancias geolocalizadas y ofertas.
  */
+
+/**
+ * Función Composable que construye el directorio de sucursales de neverías.
+ * 
+ * @param shops Lista de neverías recibidas del repositorio local SQLite.
+ * @param showFavoritesOnly Booleano que indica si se debe filtrar únicamente la lista de favoritas.
+ * @param onToggleFilter Callback disparado al hacer clic en el chip de filtro de favoritas.
+ * @param onToggleFavorite Callback para agregar o quitar una sucursal de la lista de favoritos del usuario.
+ * @param onShopClick Callback para ver detalles de una nevería específica.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NeveriasScreen(
@@ -341,20 +351,25 @@ fun NeveriasScreen(
     onToggleFavorite: (String) -> Unit,
     onShopClick: (MockShop) -> Unit = {}
 ) {
+    // [FILTRADO REACTIVO DE SUCURSALES]: Evalúa dinámicamente si mostrar todas las neverías o filtrar por la tabla puente user_favorites
     val filteredShops = if (showFavoritesOnly) shops.filter { it.esFavorita } else shops
 
+    // Contenedor principal con relleno perimetral de 16dp
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // [ENCABEZADO Y BOTÓN CHIP DE FILTRO DE FAVORITAS]:
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Título dinámico que cambia según el filtro activo
             Text(
                 text = if (showFavoritesOnly) "⭐ Sucursales Favoritas" else "🍦 Todas las Neverías",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = MobileThemeColors.CocoaDarkText
             )
+            // Chip interactivo de Material 3 para alternar el filtro
             FilterChip(
                 selected = showFavoritesOnly,
                 onClick = onToggleFilter,
@@ -447,11 +462,19 @@ import java.util.Locale
  * PROPÓSITO: Pantalla de Catálogo de Productos y Carrito de Compras (UI Layer).
  * Presenta el menú de especialidades artesanales con cálculo de precios en tiempo real y flujo de checkout.
  */
+
+/**
+ * Función Composable que construye el catálogo interactivo de productos y golosinas.
+ * 
+ * @param onAddToCart Callback invocado al seleccionar un producto para añadirlo a la orden activa.
+ * @param onCheckout Callback ejecutado para procesar el pedido y generar el ticket final.
+ */
 @Composable
 fun CatalogoScreen(
     onAddToCart: (MockProductLine) -> Unit,
     onCheckout: () -> Unit
 ) {
+    // [LISTA DE ESPECIALIDADES ARTESANALES]: Catálogo estático de productos con precios unitarios en MXN
     val catalog = listOf(
         MockProductLine("Copa Helarte Suprema", 1, 95.0),
         MockProductLine("Nieve Artesanal de Limón", 1, 45.0),
@@ -459,6 +482,7 @@ fun CatalogoScreen(
         MockProductLine("Malteada de Vainilla Cacao", 1, 80.0)
     )
 
+    // Contenedor principal
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("🍨 Menú de Especialidades", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MobileThemeColors.CocoaDarkText)
         Spacer(modifier = Modifier.height(12.dp))
@@ -521,36 +545,54 @@ import java.util.Locale
  * PROPÓSITO: Pantalla de Seguimiento de Pedido Activo (UI Layer).
  * Muestra el desglose del ticket, tiempo estimado de entrega y botones para simular transiciones de estado de pedido.
  */
+
+/**
+ * Función Composable para la pantalla de ticket y seguimiento del pedido en curso.
+ * 
+ * @param order Objeto MockOrder con el estado actual del pedido o null si no se ha realizado ninguna orden.
+ * @param onSimulateProgress Callback para avanzar el estado del pedido manualmente en la simulación.
+ */
 @Composable
 fun PedidoActivoScreen(
     order: MockOrder?,
     onSimulateProgress: (String) -> Unit
 ) {
+    // [EVALUACIÓN DE ESTADO]: Si no hay ningún pedido activo registrado en la sesión, despliega la pantalla vacía (Empty State)
     if (order == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Icono decorativo de ticket deshabilitado/atenuado
                 Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(64.dp), tint = MobileThemeColors.CocoaMuted)
                 Spacer(modifier = Modifier.height(12.dp))
+                // Mensaje explicativo informando al usuario que la orden está vacía
                 Text("No hay ningún pedido activo en este momento.", color = MobileThemeColors.CocoaMuted)
             }
         }
     } else {
+        // [VISTA DE TICKET ACTIVO]: Contenedor vertical principal para renderizar la cabecera y el detalle de la compra
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Tarjeta contenedora blanca con esquinas redondeadas y elevación para simular papel térmico de ticket
             Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(3.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // Encabezado del ticket con Folio ID
                     Text("Ticket: #${order.id}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    // Datos de geolocalización y tiempos de preparación estimados
                     Text("Sucursal: ${order.neveriaNombre}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Text("Tiempo estimado: ~${order.tiempoEstimadoMinutos} minutos", fontSize = 12.sp, color = MobileThemeColors.CocoaLightText)
                     Spacer(modifier = Modifier.height(12.dp))
+                    // Resumen financiero del pedido
                     Text("Total: $${String.format(Locale.US, "%.2f", order.total)} MXN", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MobileThemeColors.PinkText)
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
+            // [CONTROLES DE SIMULACIÓN Y TRANSMISIÓN INTER-MÓDULO]:
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                // Botón para transicionar la orden a ACEPTADO
                 Button(onClick = { onSimulateProgress("ACEPTADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.AceptadoBg), modifier = Modifier.weight(1f)) {
                     Text("Aceptar", fontSize = 11.sp, color = MobileThemeColors.AceptadoText, fontWeight = FontWeight.Bold)
                 }
+                // Botón para transicionar la orden a ENTREGADO
                 Button(onClick = { onSimulateProgress("ENTREGADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.EntregadoBg), modifier = Modifier.weight(1f)) {
                     Text("Entregar", fontSize = 11.sp, color = MobileThemeColors.EntregadoText, fontWeight = FontWeight.Bold)
                 }
@@ -590,29 +632,46 @@ import mx.utng.snowtrail.service.MockOrder
  * PROPÓSITO: Panel de Administración (UI Layer).
  * Cuadrícula de botones 2x2 para cambiar los estados de los pedidos en la máquina de estados finita.
  */
+
+/**
+ * Función Composable que representa el panel de control del administrador / cocinero.
+ * 
+ * @param activeOrder Pedido activo a gestionar en la cocina.
+ * @param onUpdateState Callback ejecutado al presionar Aceptar, Posponer, Entregar o Rechazar.
+ */
 @Composable
 fun AdminPanelScreen(
     activeOrder: MockOrder?,
     onUpdateState: (String) -> Unit
 ) {
+    // Contenedor principal con margen interno de 16dp
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Título del módulo de administración
         Text("🛠️ Panel de Gestión (ADMIN)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MobileThemeColors.CocoaDarkText)
         Spacer(modifier = Modifier.height(16.dp))
 
+        // [EVALUACIÓN DE ORDEN ACTIVA]: Muestra la tarjeta con los datos del pedido actual si existe
         if (activeOrder != null) {
+            // [CUADRÍCULA 2X2 DE BOTONES DE ACCIÓN PARA TRANSICIÓN DE ESTADO FINITO]:
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Fila 1: Botones de Aceptar (ACEPTADO) y Posponer (POSPUESTO)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    // Botón para aprobar el pedido y marcarlo como ACEPTADO en la cocina
                     Button(onClick = { onUpdateState("ACEPTADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.AceptadoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
                         Text("✅ Aceptar", fontWeight = FontWeight.Bold, color = MobileThemeColors.AceptadoText)
                     }
+                    // Botón para pausar o posponer el pedido en la cola
                     Button(onClick = { onUpdateState("POSPUESTO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PospuestoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
                         Text("⏳ Posponer", fontWeight = FontWeight.Bold, color = MobileThemeColors.PospuestoText)
                     }
                 }
+                // Fila 2: Botones de Entregar (ENTREGADO) y Rechazar (RECHAZADO)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    // Botón para marcar la orden como finalizada y entregada al cliente
                     Button(onClick = { onUpdateState("ENTREGADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.EntregadoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
                         Text("🎉 Entregar", fontWeight = FontWeight.Bold, color = MobileThemeColors.EntregadoText)
                     }
+                    // Botón para declinar o cancelar el pedido por falta de insumos u otro motivo
                     Button(onClick = { onUpdateState("RECHAZADO") }, colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.RechazadoBg), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(48.dp)) {
                         Text("❌ Rechazar", fontWeight = FontWeight.Bold, color = MobileThemeColors.RechazadoText)
                     }
