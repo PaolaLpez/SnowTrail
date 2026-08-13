@@ -1745,6 +1745,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.nio.charset.StandardCharsets
 
+/**
+ * ARCHIVO: WearCommunicationManager.kt
+ * PROPÓSITO: Gestor de Comunicaciones del Smartwatch (Data Layer / MessageClient).
+ * Envía paquetes de mensajes y comandos de usuario hacia el smartphone y simula transiciones locales si no hay celular conectado.
+ */
+
+/**
+ * Clase administradora para el despacho de mensajes por la red Wearable Data Layer de Google Play Services.
+ * 
+ * @param context Contexto de la aplicación Android.
+ */
 class WearCommunicationManager(private val context: Context) {
     private val tag = "WearCommManager"
     
@@ -1872,6 +1883,15 @@ import com.google.android.gms.wearable.*
 import mx.utng.snowtrail.model.*
 import mx.utng.snowtrail.shared.WearPaths
 
+/**
+ * ARCHIVO: WearDataListenerService.kt
+ * PROPÓSITO: Servicio de Escucha en Segundo Plano de Wear OS (`:wear`).
+ * Recibe eventos de sincronización DataClient (pedidos, notificaciones, tiendas) y alertas de proximidad MessageClient aun cuando la app esté cerrada.
+ */
+
+/**
+ * Servicio background que extiende WearableListenerService para monitorear eventos del Data Layer.
+ */
 class WearDataListenerService : WearableListenerService() {
     private val tag = "WearDataListener"
 
@@ -1964,6 +1984,15 @@ class WearDataListenerService : WearableListenerService() {
 ```kotlin
 package mx.utng.snowtrail.model
 
+/**
+ * ARCHIVO: WearModels.kt
+ * PROPÓSITO: Modelos de datos inmutables y livianos optimizados para la capa de sincronización Wearable Data Layer (`:wear`).
+ * Contiene estructuras de datos DTO para tiendas, productos, pedidos, notificaciones y alertas de geofencing.
+ */
+
+/**
+ * Modelo de Resumen de Nevería para el reloj.
+ */
 data class NeveriaResumen(
     val id: String,
     val nombre: String,
