@@ -23,6 +23,13 @@ import java.util.Locale
  * PROPÓSITO: Pantalla de Catálogo de Productos y Carrito de Compras (UI Layer).
  * Presenta el menú de especialidades artesanales con cálculo de precios en tiempo real y flujo de checkout.
  */
+
+/**
+ * Función Composable que construye el catálogo interactivo de productos y golosinas.
+ * 
+ * @param onAddToCart Callback invocado al seleccionar un producto para añadirlo a la orden activa.
+ * @param onCheckout Callback ejecutado para procesar el pedido y generar el ticket final.
+ */
 @Composable
 fun CatalogoScreen(
     onAddToCart: (MockProductLine) -> Unit,

@@ -29,6 +29,16 @@ import mx.utng.snowtrail.service.MockShop
  * PROPÓSITO: Pantalla de Explorador de Neverías (UI Layer).
  * Permite filtrar entre todas las sucursales y las marcadas como favoritas independientes, mostrando distancias geolocalizadas y ofertas.
  */
+
+/**
+ * Función Composable que construye el directorio de sucursales de neverías.
+ * 
+ * @param shops Lista de neverías recibidas del repositorio local SQLite.
+ * @param showFavoritesOnly Booleano que indica si se debe filtrar únicamente la lista de favoritas.
+ * @param onToggleFilter Callback disparado al hacer clic en el chip de filtro de favoritas.
+ * @param onToggleFavorite Callback para agregar o quitar una sucursal de la lista de favoritos del usuario.
+ * @param onShopClick Callback para ver detalles de una nevería específica.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NeveriasScreen(

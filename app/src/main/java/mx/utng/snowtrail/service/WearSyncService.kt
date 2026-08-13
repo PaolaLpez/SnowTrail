@@ -14,7 +14,8 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
- * Servicio de Sincronización y Backend Móvil (Google Play Services Wearable Data Layer).
+ * ARCHIVO: WearSyncService.kt
+ * PROPÓSITO: Servicio de Sincronización y Backend Móvil (Google Play Services Wearable Data Layer).
  * Escucha eventos del smartwatch en segundo plano mediante [WearableListenerService],
  * gestiona la máquina de estados finita de los pedidos (NUEVO, ACEPTADO, POSPUESTO, ENTREGADO, RECHAZADO)
  * y sincroniza persistentemente los DataItems con el reloj mediante la API Wearable.

@@ -5,9 +5,17 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 
+/**
+ * ARCHIVO: SnowTrailRepository.kt
+ * PROPÓSITO: Repositorio de datos para Android TV (`:tv`).
+ * Ofrece métodos relacionales para almacenar y consultar promociones recibidas vía TCP Socket y gestionar la cola de comandera.
+ */
 class SnowTrailRepository(context: Context) {
     private val dbHelper = DatabaseHelper(context)
 
+    /**
+     * Modelo de Promoción para Android TV.
+     */
     data class TvPromotion(
         val id: String,
         val nombre: String,
@@ -18,6 +26,9 @@ class SnowTrailRepository(context: Context) {
         val neveriaId: String
     )
 
+    /**
+     * Modelo de Pedido para la comandera digital de Android TV.
+     */
     data class TvOrder(
         val id: String,
         val cliente: String,
@@ -29,6 +40,9 @@ class SnowTrailRepository(context: Context) {
         val neveriaId: String
     )
 
+    /**
+     * Consulta todas las promociones almacenadas en SQLite para la marquesina de TV.
+     */
     fun getPromotions(): List<TvPromotion> {
         val list = mutableListOf<TvPromotion>()
         val db = dbHelper.readableDatabase

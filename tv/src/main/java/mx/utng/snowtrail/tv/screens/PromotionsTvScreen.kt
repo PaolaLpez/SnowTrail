@@ -32,6 +32,14 @@ import mx.utng.snowtrail.tv.theme.TvThemeColors
  * PROPÓSITO: Pantalla principal de Promociones para Android TV (UI Layer).
  * Muestra un carrusel panorámico con auto-desplazamiento cada 4 segundos de las promociones activas y soporte D-Pad con FocusRequester.
  */
+
+/**
+ * Función Composable para la marquesina de promociones en Android TV.
+ * 
+ * @param promotions Lista de promociones registradas en la heladería.
+ * @param selectedShopName Nombre de la sucursal actualmente seleccionada.
+ * @param onNavigateToOrders Callback para cambiar a la pantalla de cola de pedidos.
+ */
 @Composable
 fun PromotionsTvScreen(
     promotions: List<TvPromotion>,

@@ -4,6 +4,11 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
+/**
+ * ARCHIVO: DatabaseHelper.kt
+ * PROPÓSITO: Ayudante de Base de Datos SQLite Local para Android TV (`snowtrail_tv.db`).
+ * Administra la creación y actualización del esquema para promociones y órdenes en comandera.
+ */
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {

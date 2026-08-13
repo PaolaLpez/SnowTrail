@@ -25,6 +25,16 @@ import java.util.Locale
  * PROPÓSITO: Pantalla 2 de Wear OS (UI Layer).
  * Lista de Neverías Cercanas con escalado curvo dinámico (ScalingLazyColumn) e indicadores de promoción y favoritos.
  */
+
+/**
+ * Función Composable para la Pantalla 2 de Wear OS (Directorio Curvo de Neverías Cercanas).
+ * 
+ * @param shops Lista de neverías sincronizadas.
+ * @param isLoading Estado de carga inicial.
+ * @param focusedIndex Índice del elemento con foco al usar el bisel giratorio (Rotary Input).
+ * @param onShopSelected Callback disparado al presionar una heladería.
+ * @param modifier Modificador visual opcional.
+ */
 @Composable
 fun NearbyShopsScreen(
     shops: List<NeveriaResumen>,

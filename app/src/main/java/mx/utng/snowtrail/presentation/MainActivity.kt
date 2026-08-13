@@ -62,6 +62,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Función Composable que asume el rol de Contenedor de Navegación y UI de la Aplicación Móvil.
+ * 
+ * @param repository Repositorio de persistencia SQLite local.
+ * @param onNotifyStateChange Callback disparado cuando ocurre una transición de estado de pedido.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SnowTrailMainScreen(

@@ -31,6 +31,15 @@ import mx.utng.snowtrail.tv.theme.TvThemeColors
  * - Izquierda: Pedido NUEVO activo con botones de acción (Aceptar, Posponer, Rechazar).
  * - Derecha: Cola de pedidos PENDIENTES con opción de marcar como Entregado.
  */
+
+/**
+ * Función Composable para la pantalla de comandera digital en Android TV.
+ * 
+ * @param orders Lista de pedidos recibidos por TCP Socket desde smartphones.
+ * @param selectedShopName Nombre de la sucursal activa.
+ * @param onUpdateOrder Callback (orderId, newStatus) para actualizar el estado del pedido en la BD local.
+ * @param onBack Callback para regresar al carrusel de promociones.
+ */
 @Composable
 fun OrdersTvScreen(
     orders: List<TvOrder>,

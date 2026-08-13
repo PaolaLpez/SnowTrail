@@ -22,6 +22,14 @@ import mx.utng.snowtrail.presentation.theme.SnowTrailColors
  * PROPÓSITO: Diálogo Modal de Alerta de Proximidad para Wear OS.
  * Se despliega automáticamente con vibración háptica al estar a menos de 100m de una tienda, ofreciendo acciones rápidas (Ver / Cerrar).
  */
+
+/**
+ * Función Composable para el diálogo modal emerjente de alerta geolocalizada de proximidad.
+ * 
+ * @param alert Datos de la alerta de proximidad con nombre de sucursal y distancia.
+ * @param onOpenShops Callback para navegar a la lista de heladerías.
+ * @param onDismiss Callback para descartar y ocultar el diálogo.
+ */
 @Composable
 fun ProximityAlertDialog(
     alert: ProximityAlert,

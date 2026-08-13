@@ -26,6 +26,17 @@ import java.util.Locale
  * PROPÓSITO: Pantalla 1 de Wear OS (UI Layer).
  * Muestra el estado del pedido activo, tiempo estimado de entrega y las sucursales favoritas más cercanas.
  */
+
+/**
+ * Función Composable para la Pantalla 1 de Wear OS (Estado del Pedido y Favoritos Cercanos).
+ * 
+ * @param order Pedido activo en curso recibido vía DataClient o null.
+ * @param nearbyFavorites Lista de neverías favoritas ordenadas por proximidad.
+ * @param isConnected Booleano que indica el estado del enlace con el smartphone.
+ * @param onOrderClicked Callback al pulsar sobre la tarjeta del pedido.
+ * @param onShopClicked Callback al seleccionar una heladería favorita.
+ * @param modifier Modificador visual opcional de Compose.
+ */
 @Composable
 fun OrderStatusScreen(
     order: PedidoResumen?,

@@ -21,6 +21,13 @@ import java.util.Locale
  * PROPÓSITO: Pantalla de Seguimiento de Pedido Activo (UI Layer).
  * Muestra el desglose del ticket, tiempo estimado de entrega y botones para simular transiciones de estado de pedido.
  */
+
+/**
+ * Función Composable para la pantalla de ticket y seguimiento del pedido en curso.
+ * 
+ * @param order Objeto MockOrder con el estado actual del pedido o null si no se ha realizado ninguna orden.
+ * @param onSimulateProgress Callback para avanzar el estado del pedido manualmente en la simulación.
+ */
 @Composable
 fun PedidoActivoScreen(
     order: MockOrder?,

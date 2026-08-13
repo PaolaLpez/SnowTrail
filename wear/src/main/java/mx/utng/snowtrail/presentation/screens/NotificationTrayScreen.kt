@@ -31,6 +31,15 @@ import java.util.Locale
  * PROPÓSITO: Pantalla 3 de Wear OS (UI Layer).
  * Bandeja de Notificaciones y Avisos con texto deslizante continuo mediante el modificador basicMarquee.
  */
+
+/**
+ * Función Composable para la Pantalla 3 de Wear OS (Bandeja de Alertas y Notificaciones).
+ * 
+ * @param notifications Lista de notificaciones recibidas.
+ * @param focusedIndex Elemento enfocado mediante interacción con botones físicos STEM Keys.
+ * @param onNotificationClicked Callback al pulsar una notificación para ver el cupón detallado.
+ * @param modifier Modificador visual opcional.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NotificationTrayScreen(

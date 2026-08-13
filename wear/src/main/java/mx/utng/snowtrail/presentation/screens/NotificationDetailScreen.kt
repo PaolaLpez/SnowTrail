@@ -39,6 +39,15 @@ private data class NotificationTypeUI(
  * PROPÓSITO: Pantalla Modal de Detalle de Notificación (UI Layer).
  * Genera cupones promocionales interactivos con códigos alfanuméricos y botón para abrir en smartphone.
  */
+
+/**
+ * Función Composable para la pantalla modal de detalle de cupón/aviso en Wear OS.
+ * 
+ * @param notification Objeto NotificacionResumen con los datos de la alerta.
+ * @param onBack Callback para cerrar la vista modal.
+ * @param onConfirm Callback para disparar la apertura en el smartphone conectado.
+ * @param modifier Modificador visual opcional.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NotificationDetailScreen(

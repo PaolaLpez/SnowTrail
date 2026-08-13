@@ -17,6 +17,13 @@ import mx.utng.snowtrail.service.MockOrder
  * PROPÓSITO: Panel de Administración (UI Layer).
  * Cuadrícula de botones 2x2 para cambiar los estados de los pedidos en la máquina de estados finita.
  */
+
+/**
+ * Función Composable que representa el panel de control del administrador / cocinero.
+ * 
+ * @param activeOrder Pedido activo a gestionar en la cocina.
+ * @param onUpdateState Callback ejecutado al presionar Aceptar, Posponer, Entregar o Rechazar.
+ */
 @Composable
 fun AdminPanelScreen(
     activeOrder: MockOrder?,
