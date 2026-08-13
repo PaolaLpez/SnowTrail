@@ -46,10 +46,13 @@ fun PromotionsTvScreen(
     selectedShopName: String,
     onNavigateToOrders: () -> Unit
 ) {
+    // [ESTADO DEL CARRUSEL]: Índice de la oferta/promoción que se proyecta en pantalla gigante
     var currentIndex by remember { mutableIntStateOf(0) }
+    
+    // [MANEJO DE ENFOQUE D-PAD DE TV]: Enrutador de foco para que el control remoto controle el botón en pantalla
     val focusRequester = remember { FocusRequester() }
 
-    // Solicitar foco al iniciar para soportar control remoto de TV
+    // [EFECTO INICIAL DE ENFOQUE]: Solicita el foco después de 100ms para permitir la interacción del mando de la TV
     LaunchedEffect(Unit) {
         try {
             delay(100L)
@@ -59,7 +62,8 @@ fun PromotionsTvScreen(
         }
     }
 
-    // Auto-scroll automático del carrusel de promociones
+    // [TEMPORIZADOR AUTOMÁTICO - REPETICIÓN CÍCLICA 4000MS]:
+    // Corrutina que rota automáticamente la promoción cada 4 segundos sin intervención del operador de mostrador
     LaunchedEffect(promotions) {
         if (promotions.isNotEmpty()) {
             while (true) {
@@ -71,6 +75,7 @@ fun PromotionsTvScreen(
 
     val context = LocalContext.current
 
+    // Contenedor principal con fondo degradado suave vainilla-menta optimizado para consumo visual a distancia
     Box(
         modifier = Modifier
             .fillMaxSize()

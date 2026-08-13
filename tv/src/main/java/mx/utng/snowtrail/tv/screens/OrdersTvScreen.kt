@@ -47,12 +47,15 @@ fun OrdersTvScreen(
     onUpdateOrder: (String, String) -> Unit,
     onBack: () -> Unit
 ) {
-    // Separar pedidos por estado para mostrar en columnas independientes
+    // [SEGREGACIÓN DE ESTADOS EN VISTA SPLIT-SCREEN]:
+    // Filtra las órdenes entrantes por Socket en dos colas paralelas (NUEVO vs PENDIENTE)
     val newOrders = orders.filter { it.estado == "NUEVO" }
     val pendingOrders = orders.filter { it.estado == "PENDIENTE" }
+    
+    // Gestor de foco para interacción con control remoto de la TV (D-Pad)
     val focusRequester = remember { FocusRequester() }
 
-    // Solicitar foco para soporte de control remoto de TV
+    // Solicitar foco al montar la interfaz para garantizar respuesta inmediata a eventos D-Pad
     LaunchedEffect(Unit) {
         try {
             delay(100L)

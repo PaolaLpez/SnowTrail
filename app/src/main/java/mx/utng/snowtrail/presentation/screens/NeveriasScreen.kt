@@ -48,21 +48,25 @@ fun NeveriasScreen(
     onToggleFavorite: (String) -> Unit,
     onShopClick: (MockShop) -> Unit = {}
 ) {
+    // [FILTRADO REACTIVO DE SUCURSALES]: Evalúa dinámicamente si mostrar todas las neverías o filtrar por la tabla puente user_favorites
     val filteredShops = if (showFavoritesOnly) shops.filter { it.esFavorita } else shops
 
+    // Contenedor principal con relleno perimetral de 16dp
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // Encabezado con selector de filtro Todas / Favoritas
+        // [ENCABEZADO Y BOTÓN CHIP DE FILTRO DE FAVORITAS]:
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Título dinámico que cambia según el filtro activo
             Text(
                 text = if (showFavoritesOnly) "⭐ Sucursales Favoritas" else "🍦 Todas las Neverías",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = MobileThemeColors.CocoaDarkText
             )
+            // Chip interactivo de Material 3 para alternar el filtro
             FilterChip(
                 selected = showFavoritesOnly,
                 onClick = onToggleFilter,
@@ -72,6 +76,7 @@ fun NeveriasScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // [ESTADO VACÍO - EMPTY STATE]: Muestra mensaje cuando la lista filtrada no arroja resultados
         if (filteredShops.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -85,6 +90,7 @@ fun NeveriasScreen(
                 )
             }
         } else {
+            // [DIRECTORIO LAZYCOLUMN OPTIMIZADO]: Muestra las neverías en tarjetas con icono, distancia Haversine y botón de estrella favorito
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(filteredShops) { shop ->
                     Card(
@@ -99,6 +105,7 @@ fun NeveriasScreen(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Avatar circular decorativo con el icono de helado en tono rosa fresa
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)

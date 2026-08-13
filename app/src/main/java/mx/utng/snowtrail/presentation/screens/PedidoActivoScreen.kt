@@ -33,9 +33,11 @@ fun PedidoActivoScreen(
     order: MockOrder?,
     onSimulateProgress: (String) -> Unit
 ) {
+    // [EVALUACIÓN DE ESTADO]: Si no hay ningún pedido activo registrado en la sesión, despliega la pantalla vacía (Empty State)
     if (order == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Icono decorativo de ticket deshabilitado/atenuado
                 Icon(
                     imageVector = Icons.Default.Receipt,
                     contentDescription = null,
@@ -43,12 +45,15 @@ fun PedidoActivoScreen(
                     tint = MobileThemeColors.CocoaMuted
                 )
                 Spacer(modifier = Modifier.height(12.dp))
+                // Mensaje explicativo informando al usuario que la orden está vacía
                 Text("No hay ningún pedido activo en este momento.", color = MobileThemeColors.CocoaMuted)
                 Text("Ve al catálogo para realizar tu primera orden.", fontSize = 12.sp, color = MobileThemeColors.CocoaMuted)
             }
         }
     } else {
+        // [VISTA DE TICKET ACTIVO]: Contenedor vertical principal para renderizar la cabecera y el detalle de la compra
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Tarjeta contenedora blanca con esquinas redondeadas y elevación para simular papel térmico de ticket
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -56,16 +61,20 @@ fun PedidoActivoScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // Encabezado del ticket con Folio ID y Badge de estado coloreado
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Folio único identificador de la orden
                         Text(
                             text = "Ticket: #${order.id}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
+                        
+                        // [MÁQUINA DE ESTADOS - MAPEO VISUAL]: Determina el par (Fondo, Texto) de la cápsula según el estado actual
                         val (bg, txt) = when (order.estado) {
                             "NUEVO" -> Pair(MobileThemeColors.NuevoBg, MobileThemeColors.NuevoText)
                             "ACEPTADO" -> Pair(MobileThemeColors.AceptadoBg, MobileThemeColors.AceptadoText)
@@ -74,6 +83,8 @@ fun PedidoActivoScreen(
                             "RECHAZADO" -> Pair(MobileThemeColors.RechazadoBg, MobileThemeColors.RechazadoText)
                             else -> Pair(MobileThemeColors.IceCreamMint, MobileThemeColors.MintText)
                         }
+                        
+                        // Cápsula o Badge visual redondeado que resalta la fase de la orden
                         Surface(
                             color = bg,
                             shape = RoundedCornerShape(8.dp)
@@ -92,18 +103,22 @@ fun PedidoActivoScreen(
                     Divider(color = MobileThemeColors.OffWhiteVanilla)
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // Datos de geolocalización y tiempos de preparación estimados
                     Text("Sucursal: ${order.neveriaNombre}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Text("Tiempo estimado: ~${order.tiempoEstimadoMinutos} minutos", fontSize = 12.sp, color = MobileThemeColors.CocoaLightText)
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // [DETALLE CABECERA-RENGLÓN]: Iteración sobre la lista de productos comprados en el ticket
                     Text("Productos:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     order.productos.forEach { p ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            // Cantidad y nombre del helado/nieve
                             Text("• ${p.cantidad}x ${p.nombre}", fontSize = 13.sp, color = MobileThemeColors.CocoaDarkText)
+                            // Cálculo subtotal (cantidad * precioUnitario) formateado con 2 decimales
                             Text("$${String.format(Locale.US, "%.2f", p.precioUnitario * p.cantidad)}", fontSize = 13.sp)
                         }
                     }
@@ -112,6 +127,7 @@ fun PedidoActivoScreen(
                     Divider(color = MobileThemeColors.OffWhiteVanilla)
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // [TOTAL GENERAL DE COMPRA]: Resumen financiero final del pedido en Moneda Nacional MXN
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -129,10 +145,13 @@ fun PedidoActivoScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // [CONTROLES DE SIMULACIÓN Y TRANSMISIÓN INTER-MÓDULO]:
+            // Botones de prueba rápida para simular transiciones de estado de pedido y verificar la sincronización por red hacia el Smartwatch y TV.
             Text("Simulación de Estados (Sincroniza con el Reloj):", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                // Botón para transicionar la orden a ACEPTADO
                 Button(
                     onClick = { onSimulateProgress("ACEPTADO") },
                     colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.AceptadoBg),
@@ -140,6 +159,7 @@ fun PedidoActivoScreen(
                 ) {
                     Text("Aceptar", fontSize = 11.sp, color = MobileThemeColors.AceptadoText, fontWeight = FontWeight.Bold)
                 }
+                // Botón para transicionar la orden a ENTREGADO
                 Button(
                     onClick = { onSimulateProgress("ENTREGADO") },
                     colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.EntregadoBg),
@@ -147,6 +167,7 @@ fun PedidoActivoScreen(
                 ) {
                     Text("Entregar", fontSize = 11.sp, color = MobileThemeColors.EntregadoText, fontWeight = FontWeight.Bold)
                 }
+                // Botón para transicionar la orden a POSPUESTO
                 Button(
                     onClick = { onSimulateProgress("POSPUESTO") },
                     colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PospuestoBg),

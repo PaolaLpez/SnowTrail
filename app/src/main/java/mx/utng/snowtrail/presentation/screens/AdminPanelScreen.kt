@@ -29,13 +29,16 @@ fun AdminPanelScreen(
     activeOrder: MockOrder?,
     onUpdateState: (String) -> Unit
 ) {
+    // Contenedor principal con margen interno de 16dp
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Título del módulo de administración
         Text(
             text = "🛠️ Panel de Gestión (ADMIN)",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = MobileThemeColors.CocoaDarkText
         )
+        // Subtítulo técnico indicando la función de máquina de estados
         Text(
             text = "Control de pedidos en cocina y máquina de estados",
             fontSize = 12.sp,
@@ -44,6 +47,7 @@ fun AdminPanelScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // [EVALUACIÓN DE ORDEN ACTIVA]: Muestra la tarjeta con los datos del pedido actual si existe
         if (activeOrder != null) {
             Card(
                 shape = RoundedCornerShape(14.dp),
@@ -51,11 +55,13 @@ fun AdminPanelScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
+                    // ID del pedido y nombre de la nevería de origen
                     Text(
                         text = "Pedido Actual: #${activeOrder.id} - ${activeOrder.neveriaNombre}",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
+                    // Muestra en pantalla el estado actual grabado en SQLite
                     Text(
                         text = "Estado actual: ${activeOrder.estado}",
                         color = MobileThemeColors.PinkText,
@@ -67,11 +73,15 @@ fun AdminPanelScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Etiqueta de la sección de botones de comando
             Text("Acciones de Transición de Pedido:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
 
+            // [CUADRÍCULA 2X2 DE BOTONES DE ACCIÓN PARA TRANSICIÓN DE ESTADO FINITO]:
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Fila 1: Botones de Aceptar (ACEPTADO) y Posponer (POSPUESTO)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    // Botón para aprobar el pedido y marcarlo como ACEPTADO en la cocina
                     Button(
                         onClick = { onUpdateState("ACEPTADO") },
                         colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.AceptadoBg),
@@ -80,6 +90,7 @@ fun AdminPanelScreen(
                     ) {
                         Text("✅ Aceptar", fontWeight = FontWeight.Bold, color = MobileThemeColors.AceptadoText)
                     }
+                    // Botón para pausar o posponer el pedido en la cola
                     Button(
                         onClick = { onUpdateState("POSPUESTO") },
                         colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.PospuestoBg),
@@ -90,7 +101,9 @@ fun AdminPanelScreen(
                     }
                 }
 
+                // Fila 2: Botones de Entregar (ENTREGADO) y Rechazar (RECHAZADO)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    // Botón para marcar la orden como finalizada y entregada al cliente
                     Button(
                         onClick = { onUpdateState("ENTREGADO") },
                         colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.EntregadoBg),
@@ -99,6 +112,7 @@ fun AdminPanelScreen(
                     ) {
                         Text("🎉 Entregar", fontWeight = FontWeight.Bold, color = MobileThemeColors.EntregadoText)
                     }
+                    // Botón para declinar o cancelar el pedido por falta de insumos u otro motivo
                     Button(
                         onClick = { onUpdateState("RECHAZADO") },
                         colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.RechazadoBg),

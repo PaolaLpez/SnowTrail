@@ -35,6 +35,7 @@ fun CatalogoScreen(
     onAddToCart: (MockProductLine) -> Unit,
     onCheckout: () -> Unit
 ) {
+    // [LISTA DE ESPECIALIDADES ARTESANALES]: Catálogo estático de productos con precios unitarios en MXN
     val catalog = listOf(
         MockProductLine("Copa Helarte Suprema", 1, 95.0),
         MockProductLine("Nieve Artesanal de Limón", 1, 45.0),
@@ -42,7 +43,9 @@ fun CatalogoScreen(
         MockProductLine("Malteada de Vainilla Cacao", 1, 80.0)
     )
 
+    // Contenedor principal
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Título del catálogo
         Text(
             text = "🍨 Menú de Especialidades",
             fontSize = 18.sp,
@@ -57,11 +60,13 @@ fun CatalogoScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // [LISTA OPTIMIZADA REUTILIZABLE]: LazyColumn que renderiza únicamente los productos visibles en pantalla
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(catalog) { prod ->
+                // Tarjeta individual para cada helado/nieve del menú
                 Card(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -73,12 +78,14 @@ fun CatalogoScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
+                            // Nombre de la especialidad
                             Text(
                                 text = prod.nombre,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
                                 color = MobileThemeColors.CocoaDarkText
                             )
+                            // Precio unitario formateado a 2 decimales
                             Text(
                                 text = "$${String.format(Locale.US, "%.2f", prod.precioUnitario)} MXN",
                                 fontSize = 13.sp,
@@ -86,6 +93,7 @@ fun CatalogoScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
+                        // Botón de acción rápida para agregar al carrito de la orden activa
                         Button(
                             onClick = { onAddToCart(prod) },
                             colors = ButtonDefaults.buttonColors(containerColor = MobileThemeColors.IceCreamMint),
@@ -100,6 +108,7 @@ fun CatalogoScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // [BOTÓN DE CONFIRMACIÓN Y CHECKOUT]: Dispara la creación del ticket y persiste en SQLite
         Button(
             onClick = onCheckout,
             modifier = Modifier.fillMaxWidth().height(52.dp),
