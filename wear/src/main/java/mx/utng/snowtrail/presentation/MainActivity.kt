@@ -423,7 +423,66 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Procesa la pulsación del Botón Superior Físico del reloj (STEM Key Superior).
+     * Ejecuta la acción primaria según el contexto de pantalla o alerta activa.
+     */
+    private fun handleTopButtonAction() {
+        if (isProximityAlertActive) {
+            val alert = WearStateHolder.proximityAlert.value
+            if (alert != null) {
+                WearStateHolder.clearProximityAlert()
+                Toast.makeText(this, "Abriendo tiendas cercanas...", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        val activeNotif = activeDetailNotification
+        if (activeNotif != null) {
+            commManager.sendMessage(WearPaths.MSG_ABRIR_NOTIFICACION, activeNotif.id)
+            activeDetailNotification = null
+            return
+        }
+
+        when (pagerCurrentPage) {
+            0 -> {
+                val notifs = WearStateHolder.notifications.value
+                if (notifs.isNotEmpty()) {
+                    focusedNotifIndex = (focusedNotifIndex - 1 + notifs.size) % notifs.size
+                    Toast.makeText(this, "Foco: ${notifs[focusedNotifIndex].mensaje.take(15)}...", Toast.LENGTH_SHORT).show()
+                }
+            }
+            1 -> {
+                val order = WearStateHolder.activeOrder.value
+                if (order != null) {
+                    when (order.estado) {
+                        "NUEVO" -> {
+                            commManager.sendMessage(WearPaths.MSG_ACEPTAR_PEDIDO, order.id)
+                            Toast.makeText(this, "Aceptando pedido...", Toast.LENGTH_SHORT).show()
+                        }
+                        "ACEPTADO" -> {
+                            commManager.sendMessage(WearPaths.MSG_ENTREGAR_PEDIDO, order.id)
+                            Toast.makeText(this, "Marcando entregado...", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            Toast.makeText(this, "Pedido en estado final.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            2 -> {
+                val shops = WearStateHolder.nearbyShops.value
+                if (shops.isNotEmpty() && focusedShopIndex in shops.indices) {
+                    val shop = shops[focusedShopIndex]
+                    commManager.sendMessage(WearPaths.MSG_ABRIR_DETALLE_NEVERIA, shop.id)
+                    Toast.makeText(this, "Abriendo sucursal: ${shop.nombre}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /**
      * Bucle de verificación de conexión y envío de latidos (heartbeat).
+     * Monitorea la presencia del nodo del smartphone vía Google Play Services NodeClient.
      */
     private fun startHeartbeatLoop() {
         lifecycleScopeLaunch {
@@ -437,13 +496,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Helper para lanzar corrutinas asociadas al lifecycleScope de la actividad.
+     * 
+     * @param block Bloque suspendible a ejecutar.
+     */
     private fun lifecycleScopeLaunch(block: suspend () -> Unit) {
         lifecycleScope.launch {
             block()
         }
     }
 
-    // [MOTOR HÁPTICO]: Dispara vibración de hardware de 150ms cuando se detecta alerta de proximidad <100m
+    /**
+     * [MOTOR HÁPTICO]: Dispara una pulsación de vibración física de hardware (150ms)
+     * al recibir una notificación de proximidad o cambio de estado prioritario.
+     */
     private fun triggerHapticFeedback() {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager

@@ -29,6 +29,11 @@ class SnowTrailRepository(context: Context) {
     // ==========================================
 
 
+    /**
+     * Consulta el catálogo de heladerías almacenadas localmente en SQLite.
+     * 
+     * @return Lista de objetos MockShop con coordenadas, horarios y estatus de favorita.
+     */
     fun getShops(): List<MockShop> {
         val shops = mutableListOf<MockShop>()
         val db = dbHelper.readableDatabase
@@ -51,6 +56,11 @@ class SnowTrailRepository(context: Context) {
         return shops
     }
 
+    /**
+     * Inserta o reemplaza una tienda/heladería en la base de datos local SQLite.
+     * 
+     * @param shop Objeto MockShop a guardar.
+     */
     fun saveShop(shop: MockShop) {
         val db = dbHelper.writableDatabase
         val values = ContentValues().apply {
@@ -66,12 +76,24 @@ class SnowTrailRepository(context: Context) {
         db.insertWithOnConflict(DatabaseHelper.TABLE_SHOPS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
+    /**
+     * Elimina una heladería del catálogo relacional SQLite.
+     * 
+     * @param shopId Identificador único de la tienda.
+     * @return True si se eliminó al menos una fila.
+     */
     fun deleteShop(shopId: String): Boolean {
         val db = dbHelper.writableDatabase
         val result = db.delete(DatabaseHelper.TABLE_SHOPS, "${DatabaseHelper.SHOP_ID} = ?", arrayOf(shopId))
         return result > 0
     }
 
+    /**
+     * Actualiza dinámicamente la distancia de la nevería según coordenadas GPS del emulador.
+     * 
+     * @param shopId Identificador de la tienda.
+     * @param newDistance Distancia en kilómetros.
+     */
     fun updateShopDistance(shopId: String, newDistance: Double) {
         val db = dbHelper.writableDatabase
         val values = ContentValues().apply {
@@ -80,6 +102,12 @@ class SnowTrailRepository(context: Context) {
         db.update(DatabaseHelper.TABLE_SHOPS, values, "${DatabaseHelper.SHOP_ID} = ?", arrayOf(shopId))
     }
 
+    /**
+     * Consulta las heladerías personalizando las marcadas como favoritas para el usuario autenticado.
+     * 
+     * @param userEmail Correo electrónico del usuario activo.
+     * @return Lista de MockShop con el flag esFavorita evaluado contra la tabla user_favorites.
+     */
     fun getShopsForUser(userEmail: String?): List<MockShop> {
         val allShops = getShops()
         if (userEmail.isNullOrBlank()) return allShops.map { it.copy(esFavorita = false) }

@@ -176,6 +176,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Limpieza del ciclo de vida de la actividad de Android TV.
+     * Cancela la corrutina serverJob para cerrar de forma segura el ServerSocket TCP en el puerto 9090.
+     */
     override fun onDestroy() {
         super.onDestroy()
         serverJob?.cancel()
