@@ -22,7 +22,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Pantalla 1 de Wear OS: Estado del Pedido Activo y Resumen de Favoritos Cercanos.
+ * ARCHIVO: OrderStatusScreen.kt
+ * PROPÓSITO: Pantalla 1 de Wear OS (UI Layer).
+ * Muestra el estado del pedido activo, tiempo estimado de entrega y las sucursales favoritas más cercanas.
  */
 @Composable
 fun OrderStatusScreen(

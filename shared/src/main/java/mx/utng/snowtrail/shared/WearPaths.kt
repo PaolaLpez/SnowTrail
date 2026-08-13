@@ -1,9 +1,9 @@
 package mx.utng.snowtrail.shared
 
 /**
- * Protocolo de comunicación y rutas del Data Layer (Google Play Services Wearable API).
- * Define los endpoints para sincronización de estados persistentes (DataClient)
- * y despacho de eventos/acciones bidireccionales en tiempo real (MessageClient).
+ * ARCHIVO: WearPaths.kt
+ * PROPÓSITO: Protocolo de comunicación y rutas del Data Layer (Google Play Services Wearable API).
+ * Define los endpoints estáticos para sincronización de estados persistentes (DataClient) y despacho de eventos bidireccionales en tiempo real (MessageClient).
  */
 object WearPaths {
     // ==========================================

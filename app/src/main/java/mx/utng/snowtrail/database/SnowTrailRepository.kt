@@ -11,7 +11,8 @@ import mx.utng.snowtrail.service.MockProductLine
 import mx.utng.snowtrail.service.MockPromotion
 
 /**
- * Patrón Repository para abstraer las operaciones de persistencia en SQLite (Data Layer).
+ * ARCHIVO: SnowTrailRepository.kt
+ * PROPÓSITO: Patrón Repository para abstraer las operaciones de persistencia en SQLite (Data Layer).
  * Gestiona:
  * - Consultas geolocalizadas del directorio de sucursales.
  * - Tabla puente user_favorites para favoritos independientes por usuario.

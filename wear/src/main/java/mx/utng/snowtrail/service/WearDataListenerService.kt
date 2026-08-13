@@ -88,8 +88,9 @@ object WearStateHolder {
 }
 
 /**
- * Service running on the watch that listens to data sync updates
- * and high-priority proximity message events.
+ * ARCHIVO: WearDataListenerService.kt
+ * PROPÓSITO: Servicio en segundo plano para el Smartwatch (Communication Layer).
+ * Escucha actualizaciones de sincronización DataClient y mensajes de alerta de proximidad (/alarma_proximidad) del celular.
  */
 class WearDataListenerService : WearableListenerService() {
 

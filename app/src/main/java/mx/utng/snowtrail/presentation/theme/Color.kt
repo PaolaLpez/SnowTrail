@@ -3,9 +3,9 @@ package mx.utng.snowtrail.presentation.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Sistema de diseño y tokens de color pastel (MobileThemeColors).
- * Define la paleta de helados y nieves artesanales:
- * Fresa, Menta, Vainilla, Melocotón, Lavanda, Miel y Cacao.
+ * ARCHIVO: Color.kt
+ * PROPÓSITO: Sistema de diseño y tokens de color pastel (MobileThemeColors).
+ * Define la paleta visual para la aplicación móvil: Fresa, Menta, Vainilla, Melocotón, Lavanda, Miel y Cacao.
  */
 object MobileThemeColors {
     val OffWhiteVanilla = Color(0xFFFCFAF2)    // Fondo cálido tono crema vainilla

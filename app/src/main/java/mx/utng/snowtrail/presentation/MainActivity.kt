@@ -28,8 +28,9 @@ import mx.utng.snowtrail.service.MockProductLine
 import mx.utng.snowtrail.service.WearSyncService
 
 /**
- * Actividad Principal de Presentación (UI Layer).
- * Orquesta la navegación entre pantallas declarativas:
+ * ARCHIVO: MainActivity.kt
+ * PROPÓSITO: Actividad Principal de Presentación (UI Layer).
+ * Orquesta la navegación entre pantallas declarativas en la aplicación móvil:
  * 1. Explorador de Neverías (Todas / Favoritas)
  * 2. Catálogo de Nieves y Carrito de Compras
  * 3. Seguimiento de Pedido Activo (Ticket)
@@ -161,6 +162,7 @@ fun SnowTrailMainScreen(
                 .padding(padding)
                 .background(MobileThemeColors.OffWhiteVanilla)
         ) {
+            // [MOTOR DE RUTAS DECLARATIVO]: Conmutador de pantallas reactivo según el índice currentTab sin necesidad de NavController XML
             when (currentTab) {
                 0 -> NeveriasScreen(
                     shops = shops,
@@ -176,6 +178,7 @@ fun SnowTrailMainScreen(
                             if (mockIdx != -1) {
                                 WearSyncService.mockShops[mockIdx].esFavorita = newFav
                             }
+                            // [PERSISTENCIA RELACIONAL]: Actualiza la tabla puente M:N user_favorites en SQLite local
                             repository.toggleFavoriteShopForUser("cliente@snowtrail.com", shopId)
                         }
                     }
@@ -197,6 +200,7 @@ fun SnowTrailMainScreen(
                         )
                         activeOrder = newOrder
                         WearSyncService.activeOrderState = newOrder
+                        // [TRANSACCIÓN ACID]: Guarda cabecera y detalle de orden en SQLite mediante transacciones atómicas
                         repository.saveOrder(newOrder)
                         onNotifyStateChange("Nuevo Pedido Creado")
                         currentTab = 2
@@ -210,6 +214,7 @@ fun SnowTrailMainScreen(
                             it.estado = nextState
                             WearSyncService.activeOrderState?.estado = nextState
                             activeOrder = it.copy(estado = nextState)
+                            // [MÁQUINA DE ESTADOS]: Transición de estado del pedido (NUEVO -> ACEPTADO -> ENTREGADO)
                             repository.updateOrderStatus(it.id, nextState)
                             onNotifyStateChange("Pedido -> $nextState")
                         }
@@ -222,6 +227,7 @@ fun SnowTrailMainScreen(
                             it.estado = newState
                             WearSyncService.activeOrderState?.estado = newState
                             activeOrder = it.copy(estado = newState)
+                            // [PANEL DE COCINA/ADMIN]: Actualiza el estatus del pedido desde la consola de administración 2x2
                             repository.updateOrderStatus(it.id, newState)
                             onNotifyStateChange("Admin actualizó a $newState")
                         }

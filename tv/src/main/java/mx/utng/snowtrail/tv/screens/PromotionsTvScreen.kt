@@ -28,9 +28,9 @@ import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvPromotion
 import mx.utng.snowtrail.tv.theme.TvThemeColors
 
 /**
- * Pantalla principal de Promociones para Android TV.
- * Muestra un carrusel con auto-desplazamiento cada 4 segundos de las
- * promociones activas en la heladería seleccionada.
+ * ARCHIVO: PromotionsTvScreen.kt
+ * PROPÓSITO: Pantalla principal de Promociones para Android TV (UI Layer).
+ * Muestra un carrusel panorámico con auto-desplazamiento cada 4 segundos de las promociones activas y soporte D-Pad con FocusRequester.
  */
 @Composable
 fun PromotionsTvScreen(

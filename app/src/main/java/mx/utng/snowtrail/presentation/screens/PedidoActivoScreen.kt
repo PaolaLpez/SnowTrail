@@ -17,8 +17,9 @@ import mx.utng.snowtrail.service.MockOrder
 import java.util.Locale
 
 /**
- * Pantalla de Seguimiento de Pedido Activo (UI Layer).
- * Muestra el desglose del ticket y permite ver los estados.
+ * ARCHIVO: PedidoActivoScreen.kt
+ * PROPÓSITO: Pantalla de Seguimiento de Pedido Activo (UI Layer).
+ * Muestra el desglose del ticket, tiempo estimado de entrega y botones para simular transiciones de estado de pedido.
  */
 @Composable
 fun PedidoActivoScreen(

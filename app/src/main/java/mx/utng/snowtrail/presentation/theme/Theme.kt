@@ -5,7 +5,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 /**
- * Tema principal de Jetpack Compose para SnowTrail (Material 3).
+ * ARCHIVO: Theme.kt
+ * PROPÓSITO: Tema principal de Jetpack Compose para SnowTrail (Material 3).
+ * Aplica los tokens pastel de MobileThemeColors al esquema de color claro (lightColorScheme).
  */
 @Composable
 fun SnowTrailTheme(content: @Composable () -> Unit) {

@@ -14,8 +14,9 @@ import kotlinx.coroutines.tasks.await
 import java.nio.charset.StandardCharsets
 
 /**
- * Handles sending commands and messages from Wear OS watch to the Mobile Phone.
- * Also monitors device connection status via Google Play Services NodeClient.
+ * ARCHIVO: WearCommunicationManager.kt
+ * PROPÓSITO: Cliente de comunicación wearable (Communication Layer).
+ * Envía respuestas táctiles y acciones de hardware desde el smartwatch hacia el smartphone mediante la API MessageClient de Google Play Services.
  */
 class WearCommunicationManager(private val context: Context) {
     private val tag = "WearCommManager"

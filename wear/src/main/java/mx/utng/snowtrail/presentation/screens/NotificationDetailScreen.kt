@@ -35,7 +35,9 @@ private data class NotificationTypeUI(
 )
 
 /**
- * Pantalla Modal de Detalle de Notificación (Cupones, Promociones y Avisos).
+ * ARCHIVO: NotificationDetailScreen.kt
+ * PROPÓSITO: Pantalla Modal de Detalle de Notificación (UI Layer).
+ * Genera cupones promocionales interactivos con códigos alfanuméricos y botón para abrir en smartphone.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

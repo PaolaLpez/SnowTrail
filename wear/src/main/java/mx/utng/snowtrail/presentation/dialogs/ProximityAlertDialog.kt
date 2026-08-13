@@ -18,8 +18,9 @@ import mx.utng.snowtrail.model.ProximityAlert
 import mx.utng.snowtrail.presentation.theme.SnowTrailColors
 
 /**
- * Diálogo Modal de Alerta de Proximidad para Wear OS.
- * Muestra notificación de tienda cercana y ofrece acciones rápidas (Ver / Cerrar).
+ * ARCHIVO: ProximityAlertDialog.kt
+ * PROPÓSITO: Diálogo Modal de Alerta de Proximidad para Wear OS.
+ * Se despliega automáticamente con vibración háptica al estar a menos de 100m de una tienda, ofreciendo acciones rápidas (Ver / Cerrar).
  */
 @Composable
 fun ProximityAlertDialog(

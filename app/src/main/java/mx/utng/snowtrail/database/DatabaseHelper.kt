@@ -5,8 +5,9 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 /**
- * Base de Datos y Persistencia Local Relacional (Data Layer).
- * Gestiona el esquema SQLite local (snowtrail.db) para soporte offline y sincronización:
+ * ARCHIVO: DatabaseHelper.kt
+ * PROPÓSITO: Base de Datos y Persistencia Local Relacional (Data Layer).
+ * Gestiona el esquema SQLite local (snowtrail.db) en versión 5 para soporte offline y sincronización:
  * - Tabla users: Autenticación y control de acceso por roles (CLIENTE y ADMIN).
  * - Tabla shops: Directorio geolocalizado de sucursales con coordenadas y horarios.
  * - Tabla user_favorites: Tabla puente (user_email, shop_id) para listas independientes.

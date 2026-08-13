@@ -3,8 +3,9 @@ package mx.utng.snowtrail.presentation.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Tokens de color para la interfaz de Wear OS (Smartwatch).
- * Paleta pastel optimizada para pantallas OLED oscuras.
+ * ARCHIVO: WearThemeColors.kt
+ * PROPÓSITO: Tokens de color para la interfaz de Wear OS (Smartwatch).
+ * Paleta pastel optimizada para pantallas OLED oscuras: fondo negro puro (#0C0C0E) para ahorro de energía y acentos en rosa helado, menta y dorado miel.
  */
 object SnowTrailColors {
     val Background = Color(0xFF0C0C0E)        // Fondo ultra oscuro para ahorro de batería OLED

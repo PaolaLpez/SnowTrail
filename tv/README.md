@@ -194,6 +194,11 @@ package mx.utng.snowtrail.tv.theme
 
 import androidx.compose.ui.graphics.Color
 
+/**
+ * ARCHIVO: TvThemeColors.kt
+ * PROPÓSITO: Sistema de diseño y tokens de color para Android TV (UI Layer).
+ * Paleta pastel optimizada para pantallas grandes de mostrador: Vainilla, Menta, Fresa, Chocolate y estados de pedidos.
+ */
 object TvThemeColors {
     val VanillaBackground = Color(0xFFFCFAF2)   // Fondo vainilla suave
     val MintGreen = Color(0xFFE2F9EE)            // Verde menta para paneles

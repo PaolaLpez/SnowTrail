@@ -19,8 +19,9 @@ import mx.utng.snowtrail.service.MockProductLine
 import java.util.Locale
 
 /**
- * Pantalla de Catálogo de Productos y Carrito de Compras (UI Layer).
- * Presenta el menú de especialidades artesanales y cálculo de totales.
+ * ARCHIVO: CatalogoScreen.kt
+ * PROPÓSITO: Pantalla de Catálogo de Productos y Carrito de Compras (UI Layer).
+ * Presenta el menú de especialidades artesanales con cálculo de precios en tiempo real y flujo de checkout.
  */
 @Composable
 fun CatalogoScreen(

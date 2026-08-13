@@ -21,7 +21,9 @@ import mx.utng.snowtrail.presentation.theme.SnowTrailColors
 import java.util.Locale
 
 /**
- * Pantalla 2 de Wear OS: Lista de Neverías Cercanas con Escalado Dinámico.
+ * ARCHIVO: NearbyShopsScreen.kt
+ * PROPÓSITO: Pantalla 2 de Wear OS (UI Layer).
+ * Lista de Neverías Cercanas con escalado curvo dinámico (ScalingLazyColumn) e indicadores de promoción y favoritos.
  */
 @Composable
 fun NearbyShopsScreen(

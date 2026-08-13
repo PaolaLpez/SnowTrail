@@ -25,8 +25,9 @@ import mx.utng.snowtrail.presentation.theme.MobileThemeColors
 import mx.utng.snowtrail.service.MockShop
 
 /**
- * Pantalla de Explorador de Neverías (UI Layer).
- * Permite filtrar entre todas las sucursales y las marcadas como favoritas independientes.
+ * ARCHIVO: NeveriasScreen.kt
+ * PROPÓSITO: Pantalla de Explorador de Neverías (UI Layer).
+ * Permite filtrar entre todas las sucursales y las marcadas como favoritas independientes, mostrando distancias geolocalizadas y ofertas.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

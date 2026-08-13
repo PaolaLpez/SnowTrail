@@ -39,9 +39,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Actividad Principal y Orquestador de la UI para Wear OS (Smartwatch).
+ * ARCHIVO: MainActivity.kt
+ * PROPÓSITO: Actividad Principal y Orquestador de la UI para Wear OS (`:wear`).
  * Maneja el ciclo de vida, escuchadores de sincronización en segundo plano con DataClient,
- * gestos de navegación y eventos de botones físicos (Botón Superior / Inferior - STEM Keys).
+ * gestos de navegación y eventos de botones físicos de hardware (STEM Keys) y motor háptico.
  */
 class MainActivity : ComponentActivity() {
 
@@ -290,20 +291,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Intercepta eventos de botones físicos de Wear OS (Teclas STEM).
-     * Botón 1 (Superior): Acción principal, aceptar estado, desplazar arriba.
-     * Botón 2 (Inferior): Acción secundaria, posponer/cancelar, alternar favorito, desplazar abajo.
-     */
+    // [CAPTURA DE TECLAS FÍSICAS STEM]: Intercepta pulsaciones de hardware (STEM_1 = superior, STEM_2 = inferior)
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         Log.d(tag, "Físico onKeyDown: KeyCode = $keyCode")
         
         when (keyCode) {
-            KeyEvent.KEYCODE_STEM_1 -> { // BOTÓN SUPERIOR
+            KeyEvent.KEYCODE_STEM_1 -> { // [BOTÓN SUPERIOR]: Confirmar pedido / Avanzar menú / Seleccionar
                 handleTopButtonAction()
                 return true
             }
-            KeyEvent.KEYCODE_STEM_2 -> { // BOTÓN INFERIOR
+            KeyEvent.KEYCODE_STEM_2 -> { // [BOTÓN INFERIOR]: Cancelar pedido / Posponer / Marcar favorito
                 handleBottomButtonAction()
                 return true
             }
@@ -446,9 +443,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Activa retroalimentación háptica (vibración corta) para notificaciones/alertas.
-     */
+    // [MOTOR HÁPTICO]: Dispara vibración de hardware de 150ms cuando se detecta alerta de proximidad <100m
     private fun triggerHapticFeedback() {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager

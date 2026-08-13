@@ -25,8 +25,9 @@ import mx.utng.snowtrail.tv.database.SnowTrailRepository.TvOrder
 import mx.utng.snowtrail.tv.theme.TvThemeColors
 
 /**
- * Pantalla de Gestión de Pedidos para Android TV.
- * Vista dividida en dos columnas:
+ * ARCHIVO: OrdersTvScreen.kt
+ * PROPÓSITO: Pantalla de Gestión de Pedidos para Android TV (UI Layer).
+ * Vista dividida (Split-Screen) en dos columnas:
  * - Izquierda: Pedido NUEVO activo con botones de acción (Aceptar, Posponer, Rechazar).
  * - Derecha: Cola de pedidos PENDIENTES con opción de marcar como Entregado.
  */

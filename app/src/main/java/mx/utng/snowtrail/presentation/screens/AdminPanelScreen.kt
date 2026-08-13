@@ -13,8 +13,9 @@ import mx.utng.snowtrail.presentation.theme.MobileThemeColors
 import mx.utng.snowtrail.service.MockOrder
 
 /**
- * Panel de Administración (UI Layer).
- * Cuadrícula de botones 2x2 para cambiar los estados de los pedidos.
+ * ARCHIVO: AdminPanelScreen.kt
+ * PROPÓSITO: Panel de Administración (UI Layer).
+ * Cuadrícula de botones 2x2 para cambiar los estados de los pedidos en la máquina de estados finita.
  */
 @Composable
 fun AdminPanelScreen(

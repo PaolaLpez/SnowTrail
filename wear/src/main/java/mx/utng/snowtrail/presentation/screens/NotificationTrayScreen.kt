@@ -27,7 +27,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Pantalla 3 de Wear OS: Bandeja de Notificaciones y Avisos.
+ * ARCHIVO: NotificationTrayScreen.kt
+ * PROPÓSITO: Pantalla 3 de Wear OS (UI Layer).
+ * Bandeja de Notificaciones y Avisos con texto deslizante continuo mediante el modificador basicMarquee.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

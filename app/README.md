@@ -209,6 +209,11 @@ package mx.utng.snowtrail.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
+/**
+ * ARCHIVO: Color.kt
+ * PROPÓSITO: Sistema de diseño y tokens de color pastel (MobileThemeColors).
+ * Define la paleta visual para la aplicación móvil: Fresa, Menta, Vainilla, Melocotón, Lavanda, Miel y Cacao.
+ */
 object MobileThemeColors {
     val OffWhiteVanilla = Color(0xFFFCFAF2)    // Fondo cálido tono crema vainilla
     val PureWhiteCard = Color(0xFFFFFFFF)      // Fondo de tarjetas
@@ -267,6 +272,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
+/**
+ * ARCHIVO: Theme.kt
+ * PROPÓSITO: Tema principal de Jetpack Compose para SnowTrail (Material 3).
+ * Aplica los tokens pastel de MobileThemeColors al esquema de color claro (lightColorScheme).
+ */
 @Composable
 fun SnowTrailTheme(content: @Composable () -> Unit) {
     val colorScheme = lightColorScheme(
@@ -317,6 +327,11 @@ import androidx.compose.ui.unit.sp
 import mx.utng.snowtrail.presentation.theme.MobileThemeColors
 import mx.utng.snowtrail.service.MockShop
 
+/**
+ * ARCHIVO: NeveriasScreen.kt
+ * PROPÓSITO: Pantalla de Explorador de Neverías (UI Layer).
+ * Permite filtrar entre todas las sucursales y las marcadas como favoritas independientes, mostrando distancias geolocalizadas y ofertas.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NeveriasScreen(
@@ -427,6 +442,11 @@ import mx.utng.snowtrail.presentation.theme.MobileThemeColors
 import mx.utng.snowtrail.service.MockProductLine
 import java.util.Locale
 
+/**
+ * ARCHIVO: CatalogoScreen.kt
+ * PROPÓSITO: Pantalla de Catálogo de Productos y Carrito de Compras (UI Layer).
+ * Presenta el menú de especialidades artesanales con cálculo de precios en tiempo real y flujo de checkout.
+ */
 @Composable
 fun CatalogoScreen(
     onAddToCart: (MockProductLine) -> Unit,
@@ -496,6 +516,11 @@ import mx.utng.snowtrail.presentation.theme.MobileThemeColors
 import mx.utng.snowtrail.service.MockOrder
 import java.util.Locale
 
+/**
+ * ARCHIVO: PedidoActivoScreen.kt
+ * PROPÓSITO: Pantalla de Seguimiento de Pedido Activo (UI Layer).
+ * Muestra el desglose del ticket, tiempo estimado de entrega y botones para simular transiciones de estado de pedido.
+ */
 @Composable
 fun PedidoActivoScreen(
     order: MockOrder?,
@@ -560,6 +585,11 @@ import androidx.compose.ui.unit.sp
 import mx.utng.snowtrail.presentation.theme.MobileThemeColors
 import mx.utng.snowtrail.service.MockOrder
 
+/**
+ * ARCHIVO: AdminPanelScreen.kt
+ * PROPÓSITO: Panel de Administración (UI Layer).
+ * Cuadrícula de botones 2x2 para cambiar los estados de los pedidos en la máquina de estados finita.
+ */
 @Composable
 fun AdminPanelScreen(
     activeOrder: MockOrder?,
@@ -632,6 +662,15 @@ import mx.utng.snowtrail.service.MockOrder
 import mx.utng.snowtrail.service.MockProductLine
 import mx.utng.snowtrail.service.WearSyncService
 
+/**
+ * ARCHIVO: MainActivity.kt
+ * PROPÓSITO: Actividad Principal de Presentación (UI Layer).
+ * Orquesta la navegación entre pantallas declarativas en la aplicación móvil:
+ * 1. Explorador de Neverías (Todas / Favoritas)
+ * 2. Catálogo de Nieves y Carrito de Compras
+ * 3. Seguimiento de Pedido Activo (Ticket)
+ * 4. Panel de Administración (Gestión de estados 2x2)
+ */
 class MainActivity : ComponentActivity() {
     private lateinit var repository: SnowTrailRepository
 
@@ -676,6 +715,17 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
+/**
+ * ARCHIVO: DatabaseHelper.kt
+ * PROPÓSITO: Base de Datos y Persistencia Local Relacional (Data Layer).
+ * Gestiona el esquema SQLite local (snowtrail.db) en versión 5 para soporte offline y sincronización:
+ * - Tabla users: Autenticación y control de acceso por roles (CLIENTE y ADMIN).
+ * - Tabla shops: Directorio geolocalizado de sucursales con coordenadas y horarios.
+ * - Tabla user_favorites: Tabla puente (user_email, shop_id) para listas independientes.
+ * - Tabla promotions: Ofertas y promociones indexadas por heladería.
+ * - Tablas orders y order_products: Control cabecera-detalle con máquina de estados finita.
+ * - Tabla notifications: Historial de alertas y avisos de proximidad con marcas de tiempo.
+ */
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
@@ -774,6 +824,16 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import mx.utng.snowtrail.service.*
 
+/**
+ * ARCHIVO: SnowTrailRepository.kt
+ * PROPÓSITO: Patrón Repository para abstraer las operaciones de persistencia en SQLite (Data Layer).
+ * Gestiona:
+ * - Consultas geolocalizadas del directorio de sucursales.
+ * - Tabla puente user_favorites para favoritos independientes por usuario.
+ * - Catálogo indexado de promociones y ofertas.
+ * - Control transaccional de órdenes (Cabecera-Detalle) y máquina de estados finita.
+ * - Historial y marcado de notificaciones y alertas de proximidad.
+ */
 class SnowTrailRepository(context: Context) {
     private val dbHelper = DatabaseHelper(context)
 

@@ -19,11 +19,12 @@ import mx.utng.snowtrail.tv.screens.OrdersTvScreen
 import mx.utng.snowtrail.tv.screens.PromotionsTvScreen
 
 /**
- * Actividad Principal de Android TV (`:tv`).
+ * ARCHIVO: MainActivity.kt
+ * PROPÓSITO: Actividad Principal y Servidor TCP de Android TV (`:tv`).
  * Actúa como orquestador central que:
- * 1. Inicia el servidor TCP multihilo en el puerto 9090 para recibir comandos del móvil.
- * 2. Procesa los mensajes entrantes: SELECT_SHOP, ADD_PROMO, ADD_ORDER.
- * 3. Navega entre las pantallas declarativas: PromotionsTvScreen y OrdersTvScreen.
+ * 1. Inicia el servidor TCP multihilo en el puerto 9090 en Dispatchers.IO para recibir comandos del móvil.
+ * 2. Procesa los paquetes entrantes: SELECT_SHOP, ADD_PROMO, ADD_ORDER.
+ * 3. Navega en tiempo real entre PromotionsTvScreen y OrdersTvScreen.
  */
 class MainActivity : ComponentActivity() {
 
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         repository = SnowTrailRepository(applicationContext)
 
-        // Iniciar servidor TCP en segundo plano para recibir comandos del móvil (Puerto 9090)
+        // [RED TCP SOCKET MULTIHILO]: Iniciar servidor TCP en hilo secundario (Dispatchers.IO) en puerto 9090
         serverJob = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             var serverSocket: java.net.ServerSocket? = null
             try {
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     val line = reader.readLine()
                     android.util.Log.d("TvSocketServer", "Mensaje recibido del móvil: $line")
                     if (line != null) {
+                        // [HILO PRINCIPAL UI]: Transfiere la trama de red recibida al hilo de UI para actualizar Compose
                         withContext(Dispatchers.Main) {
                             onSocketMessageReceived?.invoke(line)
                         }
@@ -84,7 +86,7 @@ class MainActivity : ComponentActivity() {
                 var orders by remember { mutableStateOf(emptyList<TvOrder>()) }
                 var selectedShopId by remember { mutableStateOf<String?>("nev_los_abuelos") }
 
-                // Escuchar mensajes TCP y procesar comandos del móvil
+                // [PARSER DE TRAMAS TCP]: Procesa los mensajes recibidos del móvil y conmuta la pantalla activa
                 DisposableEffect(Unit) {
                     onSocketMessageReceived = { msg ->
                         try {
